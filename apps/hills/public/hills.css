@@ -1,0 +1,350 @@
+:root {
+  color-scheme: dark;
+  --wg-panel: rgba(18, 28, 20, 0.9);
+  --wg-border: rgba(213, 231, 194, 0.2);
+  --wg-muted: #a9bba5;
+  --wg-accent: #b9df78;
+}
+
+html,
+body,
+#root,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: #28362d;
+  color: #edf5e7;
+}
+
+#root {
+  position: relative;
+}
+
+#app canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.wg-loading {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: radial-gradient(
+      circle at 50% 35%,
+      rgba(96, 127, 73, 0.28),
+      transparent 42%
+    ),
+    #172019;
+}
+
+.wg-loading[hidden] {
+  display: none;
+}
+
+.wg-loading-card {
+  width: min(520px, 100%);
+  padding: 28px;
+  border: 1px solid var(--wg-border);
+  border-radius: 14px;
+  background: rgba(26, 38, 28, 0.92);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
+}
+
+.wg-loading-card h1,
+.wg-hud h1,
+.wg-hud h2,
+.wg-loading-card p {
+  margin-top: 0;
+}
+
+.wg-loading-card h1 {
+  margin-bottom: 10px;
+  font-size: clamp(24px, 5vw, 38px);
+}
+
+.wg-loading-card p {
+  color: var(--wg-muted);
+  line-height: 1.5;
+}
+
+.wg-loading-fallback {
+  margin-bottom: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--wg-border);
+  font-size: 13px;
+}
+
+.wg-loading a {
+  color: var(--wg-accent);
+}
+
+.wg-loading-error .wg-loading-card {
+  border-color: rgba(255, 187, 128, 0.45);
+}
+
+.wg-kicker {
+  margin: 0 0 5px;
+  color: var(--wg-accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.wg-hud {
+  position: absolute;
+  z-index: 5;
+  top: 16px;
+  left: 16px;
+  width: min(300px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 16px;
+  border: 1px solid var(--wg-border);
+  border-radius: 12px;
+  background: var(--wg-panel);
+  box-shadow: 0 12px 38px rgba(0, 0, 0, 0.3);
+}
+
+.wg-hud header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.wg-hud h1 {
+  margin-bottom: 0;
+  font-size: 20px;
+}
+
+.wg-summary,
+.wg-query {
+  color: var(--wg-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.wg-summary {
+  margin: 10px 0 13px;
+}
+
+.wg-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 13px;
+  color: var(--wg-muted);
+  font-size: 11px;
+}
+
+.wg-control select {
+  min-width: 132px;
+  padding: 5px 24px 5px 8px;
+  border: 1px solid var(--wg-border);
+  border-radius: 6px;
+  background: #263429;
+  color: #edf5e7;
+  font: inherit;
+}
+
+.wg-control select:focus-visible {
+  outline: 2px solid var(--wg-accent);
+  outline-offset: 2px;
+}
+
+.wg-query {
+  margin: 12px 0 0;
+}
+
+.wg-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.wg-stats h2 {
+  margin-bottom: 7px;
+  color: var(--wg-accent);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.wg-stats dl {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(0, 1.25fr);
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.wg-stats dt {
+  color: var(--wg-muted);
+}
+
+.wg-stats dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.wg-plant-stats {
+  grid-column: 1 / -1;
+  padding-top: 10px;
+  border-top: 1px solid var(--wg-border);
+}
+
+.wg-plant-stats dl {
+  grid-template-columns: auto minmax(70px, 1fr) auto minmax(100px, 1.4fr);
+}
+
+.wg-hint {
+  position: absolute;
+  z-index: 4;
+  bottom: 18px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 13px;
+  border: 1px solid var(--wg-border);
+  border-radius: 10px;
+  background: var(--wg-panel);
+  color: var(--wg-muted);
+  font-size: 11px;
+  transform: translateX(-50%);
+}
+
+.wg-hint[hidden] {
+  display: none;
+}
+
+.wg-hint strong {
+  color: #fff;
+}
+
+.wg-hint kbd {
+  margin-right: 2px;
+}
+
+.wg-touch-copy {
+  display: none;
+}
+
+.wg-stick {
+  position: absolute;
+  z-index: 7;
+  width: 94px;
+  height: 94px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  background: rgba(16, 25, 18, 0.3);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.wg-stick-nub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(221, 244, 198, 0.55);
+  transform: translate(-50%, -50%);
+}
+
+@media (max-width: 700px), (max-height: 560px) {
+  .wg-hud {
+    top: 8px;
+    left: 8px;
+    width: calc(100vw - 16px);
+    max-height: 44vh;
+    padding: 11px;
+    overflow: auto;
+  }
+
+  .wg-summary,
+  .wg-query {
+    display: none;
+  }
+
+  .wg-hud h1 {
+    font-size: 16px;
+  }
+
+  .wg-stats {
+    gap: 10px;
+  }
+
+  .wg-control {
+    margin-bottom: 8px;
+  }
+
+  .wg-stats dl {
+    grid-template-columns: 1fr 1fr;
+    font-size: 10px;
+  }
+
+  .wg-hint {
+    bottom: 10px;
+  }
+
+  .wg-hint > :not(.wg-touch-copy) {
+    display: none;
+  }
+
+  .wg-touch-copy {
+    display: inline;
+  }
+}
+
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overscroll-behavior: none; }
+
+.wg-hud:has(#performance-details[open]) { width: min(650px, calc(100vw - 32px)); }
+.wg-hud summary { cursor: pointer; color: var(--wg-muted); font-size: 11px; }
+.wg-hud details[open] summary { margin-bottom: 14px; }
+.wg-hud summary:focus-visible { outline: 2px solid var(--wg-accent); outline-offset: 4px; }
+.wg-live-fps { font-size: 12px; color: var(--wg-accent); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.wg-hud details + details {
+  margin-top: 13px;
+  padding-top: 13px;
+  border-top: 1px solid var(--wg-border);
+}
+
+.wg-sky-form { max-width: 300px; }
+.wg-sky-form select:disabled { opacity: .5; }
+.wg-apply {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--wg-border);
+  border-radius: 6px;
+  background: var(--wg-accent);
+  color: #172019;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.wg-apply:hover { background: #c8e994; }
+.wg-apply:focus-visible { outline: 2px solid var(--wg-accent); outline-offset: 3px; }
+.wg-settings-note {
+  margin: 8px 0 0;
+  color: var(--wg-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}

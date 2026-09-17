@@ -1,0 +1,19 @@
+{
+  "name": "@detoix/three-pieces",
+  "version": "0.1.0",
+  "description": "Three.js WebGPU pieces: a physical sky with volumetric clouds, a GPU-driven lawn, and unbounded terrain.",
+  "type": "module",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/detoix/three-pieces.git", "directory": "packages/three" },
+  "sideEffects": false,
+  "files": ["src"],
+  "exports": {
+    "./sky": { "types": "./src/sky/index.d.ts", "default": "./src/sky/index.js" },
+    "./grass": { "types": "./src/grass/index.d.ts", "default": "./src/grass/index.js" },
+    "./terrain": { "types": "./src/terrain/index.d.ts", "default": "./src/terrain/index.js" },
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": { "three": "0.185.0" },
+  "devDependencies": { "three": "0.185.0" },
+  "scripts": { "test": "node --test" }
+}

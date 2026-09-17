@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#28362d" />
+    <title>Hills</title>
+    <meta
+      name="description"
+      content="Unbounded WebGPU lawn on rolling hills under a physical sky."
+    />
+    <meta name="robots" content="noindex" />
+    <link rel="stylesheet" href="/hills.css" />
+  </head>
+
+  <body>
+    <div id="loading-screen" class="wg-loading" role="status" aria-live="polite" aria-atomic="true">
+      <div class="wg-loading-card">
+        <div class="wg-kicker">Hills · WebGPU</div>
+        <h1 id="loading-heading">Loading the hills…</h1>
+        <p id="loading-text">Checking the WebGPU device…</p>
+        <p class="wg-loading-fallback">This page requires HTTPS and a browser with WebGPU support.</p>
+      </div>
+    </div>
+
+    <main id="root">
+      <div id="app" role="region" aria-label="Walkable hills with a WebGPU lawn"></div>
+
+      <section id="hills-hud" class="wg-hud" aria-label="Hills status">
+        <header>
+          <div>
+            <p class="wg-kicker">GPU-driven lawn · sky</p>
+            <h1>Hills</h1>
+          </div>
+          <span class="wg-live-fps"><span data-stat="fps">—</span> FPS</span>
+        </header>
+        <p class="wg-summary"><span data-stat="position">—</span></p>
+      </section>
+
+      <div id="walk-hint" class="wg-hint">
+        <strong>Click to walk</strong>
+        <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</span>
+        <span><kbd>Shift</kbd> run · mouse to look · <kbd>Esc</kbd> release</span>
+        <span class="wg-touch-copy">On touch: left side walks, right side looks</span>
+      </div>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
