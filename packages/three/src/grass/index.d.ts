@@ -1,6 +1,6 @@
 import type {
-  ColorRepresentation, Group, Material, MeshStandardMaterial,
-  MeshStandardNodeMaterial, Node, PerspectiveCamera, Texture, WebGPURenderer,
+  ColorRepresentation, DataTexture, Group, Material, Mesh, MeshStandardMaterial,
+  MeshStandardNodeMaterial, Node, Object3D, PerspectiveCamera, Texture, WebGPURenderer,
 } from 'three/webgpu';
 
 export type LawnUnderlay = 'solid' | 'lawn';
@@ -310,3 +310,56 @@ export function loadLawnPBRTextures(options?: { loader?: LawnTextureLoader }): P
 export function createLawnSurface(options: LawnSurfaceOptions): Promise<LawnSurface>;
 /** Local package boundary for initialized Three.js WebGPU r185; no scene/loop ownership. */
 export function createGrass(options: GrassOptions): Grass;
+
+/** World-space XZ triangle of a lawn area, wound counter-clockwise. */
+export type LawnTriangle = readonly (readonly [number, number])[];
+
+export interface LawnAreas {
+  /** The surfaces themselves, for assigning `grass.groundMaterial` to them. */
+  readonly meshes: readonly Mesh[];
+  readonly triangles: readonly LawnTriangle[];
+  /** The single world height every vertex shares, in metres. */
+  readonly elevation: number;
+  readonly ids: readonly string[];
+  /** CPU point test, for walking and for anything placed outside the shader. */
+  contains(x: number, z: number): boolean;
+}
+
+/** The authored tag `{ version: 1, id, role: 'lawn' | 'turf' }` on `userData.landscape`. */
+export function landscapeLawnTag(object: Object3D): string | false;
+
+/**
+ * Collects the lawn areas of a loaded model, in world space. `select` returns an id,
+ * `true` to use the object's name, or a falsy value to skip; it may throw to reject a
+ * tag it recognises but cannot read. Rejects skinned and instanced meshes,
+ * non-triangulated geometry, non-finite coordinates, duplicate ids, and any surface off
+ * the shared elevation.
+ */
+export function readLawnAreas(
+  root: Object3D,
+  options?: { select?: (object: Object3D) => string | boolean },
+): LawnAreas;
+
+/** Conservative raster: 255 fully inside, 128 needs the exact test, 0 outside. */
+export function bakeLawnCoverage(
+  triangles: readonly LawnTriangle[],
+  resolution?: number,
+): { data: Uint8Array; min: [number, number]; size: [number, number]; resolution: number };
+
+export function triangleContains(triangle: LawnTriangle, x: number, z: number): boolean;
+
+/**
+ * The mask for `createGrass({ keepAt })`: a coverage texture inside, exact triangle
+ * tests along boundaries. Owns its texture; dispose it after the grass borrowing it.
+ */
+export function createLawnMask(areas: LawnAreas): {
+  keepAt: (worldXZ: Node) => Node;
+  readonly texture: DataTexture;
+  dispose(): void;
+};
+
+/** The flat height map for a lawn at one elevation; `extent` is its half-width in metres. */
+export function createFlatHeightMap(
+  elevation: number,
+  options?: { extent?: number },
+): GrassHeightMap;

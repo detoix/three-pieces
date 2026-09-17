@@ -66,7 +66,7 @@ All descriptor numbers must be finite. The height texture must support filtering
 | `texelWorldSize` | Positive world distance used for normal finite differences; match the source height-map spacing |
 | `packingMinimum`, `packingRange` | Crown-height packing interval; range must be positive and contain every decoded height |
 
-`keepAt(worldXZNode) → booleanNode` is an optional TSL function evaluated during culling, not a JavaScript predicate evaluated per blade. The host owns its textures/uniforms. Without it, grass can grow throughout the fixed rings, including beyond the height texture's domain where sampling clamps to its edge. Optional `coverageBounds` supplies a conservative union of XZ rectangles for coarse rejection; it does not itself mask grass. Optional `groundBounds` must conservatively bound decoded heights.
+`keepAt(worldXZNode) → booleanNode` is an optional TSL function evaluated during culling, not a JavaScript predicate evaluated per blade. To build one from surfaces in a loaded model, see [Growing on a loaded model](#growing-on-a-loaded-model). The host owns its textures/uniforms. Without it, grass can grow throughout the fixed rings, including beyond the height texture's domain where sampling clamps to its edge. Optional `coverageBounds` supplies a conservative union of XZ rectangles for coarse rejection; it does not itself mask grass. Optional `groundBounds` must conservatively bound decoded heights.
 
 Call `invalidateCulling()` after changing mask uniforms or coverage bounds. Terrain samples and surface appearance are cached during placement: recreate grass after changing those inputs. Construction options are not live controls; changing the supplied objects does not consistently update an existing instance.
 
@@ -87,3 +87,81 @@ Grass borrows the renderer, height map, surface and mask. Its idempotent `dispos
 **A surface owns its materials, and by default its PBR textures, including caller-supplied textures.** Supplied textures are configured in place (color space, wrapping, filtering, anisotropy, name) and disposed by `surface.dispose()`. Pass `ownTextures: false` with `textures` to keep them host-owned: the surface still releases its own materials, and the host disposes the textures after every surface using them has been disposed. `surface.ownsTextures` reports which applies. `ownTextures: false` without `textures` is rejected before loading, because bundled maps a surface loads itself are always owned. Borrowing surfaces configure the same texture objects identically, so sharing them does not change their settings. Dispose grass and detach ground materials before disposing the surface; retain borrowed height/mask resources until their consumers are finished. `loadLawnPBRTextures()` alone returns caller-owned textures; a failed batch releases any successfully loaded sibling texture.
 
 The host handles cancellation around asynchronous surface creation: if its scene is removed while loading, dispose the returned surface instead of attaching it. There is no built-in abort signal, animation/weather API or automatic performance policy. The r185 storage/readback compatibility workarounds and browser GPU behavior require retesting before a Three.js upgrade. Package distribution and R3F work are tracked in the repository README.
+
+## Growing on a loaded model
+
+The lawn can grow on surfaces of a model somebody exported instead of on
+procedural ground. Grass has no opinion about where it may grow: it fills the
+fixed rings around the camera unless it is given a `keepAt` mask. These four
+functions build that mask out of a loaded scene, so the lawn can be dropped onto
+a building, a garden or a park rather than an open field.
+
+```js
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import {
+  createFlatHeightMap, createGrass, createLawnMask, createLawnSurface, readLawnAreas,
+} from '@detoix/three-pieces/grass';
+
+const gltf = await new GLTFLoader().loadAsync('/site.glb');
+const areas = readLawnAreas(gltf.scene);                 // the authored tag
+const mask = createLawnMask(areas);                      // owns a coverage texture
+const heightMap = createFlatHeightMap(areas.elevation); // flat, at that height
+
+const surface = await createLawnSurface({ renderer });
+const grass = createGrass({ renderer, heightMap, surface, keepAt: mask.keepAt });
+for (const mesh of areas.meshes) mesh.material = grass.groundMaterial;
+scene.add(gltf.scene, grass.group);
+```
+
+Dispose in the order they borrow each other: `grass`, then `mask`, then
+`surface` and `heightMap.texture`.
+
+### Choosing the surfaces
+
+`readLawnAreas(root, { select })` takes any convention. `select(object)`
+returns an id string, `true` to use the object's name, or a falsy value to skip
+it. It may also throw, which is how a selector rejects a tag it recognises but
+cannot read, instead of silently growing no grass.
+
+```js
+readTurfRegions(scene, { select: (o) => o.name.startsWith('Lawn') });
+readTurfRegions(scene, { select: (o) => o.userData.material === 'grass' && o.name });
+```
+
+The default is `landscapeLawnTag`, which reads `userData.landscape` --
+`{ version: 1, id, role }` -- from a glTF node's `extras`, accepting `lawn` or its
+older spelling `turf`. That is the convention this project's authoring side
+writes; nothing else depends on it.
+
+Every id must be unique, and each selected object must contain at least one
+mesh. Both are errors rather than warnings: a duplicate id means the export is
+ambiguous about which surface is which, and an empty selection means the model
+changed under a selector that still matches its name.
+
+### What version 1 accepts
+
+**Static, horizontal surfaces at one elevation.** Skinned and instanced meshes,
+non-triangulated geometry, non-finite coordinates and any vertex off the shared
+height are all rejected, with the elevation held to 0.1 mm.
+
+That narrowness is deliberate. A sloped lawn wants the procedural height
+form above (`heightMap.heightAt`) rather than a flat map, and a
+stacked lawn -- a roof terrace over a garden -- needs more than one height per
+point, which a height map cannot hold. Approximating either would put blades
+through the floor somewhere, so they raise an error instead.
+
+### How the mask works
+
+The regions are collected as world-space XZ triangles, wound counter-clockwise.
+`createLawnMask` bakes them into a coverage raster, where a texel is 255 when
+its whole cell is inside a triangle, 128 when the cell straddles a boundary, and
+0 outside. In the culling pass the interior costs one texture fetch; only
+boundary texels run exact point-in-triangle tests, over every triangle.
+
+So cost scales with the boundary rather than the area, but it *does* scale with
+triangle count: a lawn area of a thousand triangles puts a thousand edge tests
+in the shader for every boundary blade. Keep authored areas coarse -- these are
+the outlines of lawns, not terrain meshes.
+
+`areas.contains(x, z)` is the same test on the CPU, for walking and for
+anything placed outside the shader.

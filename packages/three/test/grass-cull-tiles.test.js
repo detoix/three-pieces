@@ -9,7 +9,7 @@ import {
 } from '../src/grass/grid.js';
 import { BLADE_CULL_CENTRE, bladeCullRadiusFactor } from '../src/grass/blade-arc.js';
 import { createGPUDrivenGrass } from '../src/grass/grass.js';
-import { createFlatHeightMap } from './helpers/height-maps.js';
+import { createFlatHeightMap } from '../src/grass/index.js';
 import { LAWN } from '../src/grass/preset.js';
 
 const key = (x, z) => `${x},${z}`;

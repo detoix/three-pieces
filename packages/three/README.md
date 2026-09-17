@@ -5,12 +5,14 @@ Three.js WebGPU pieces, usable on their own or together:
 | Import | What it is |
 | --- | --- |
 | [`@detoix/three-pieces/sky`](docs/sky.md) | A physical atmosphere with volumetric clouds, a background and fog node, and a lighting probe |
-| [`@detoix/three-pieces/grass`](docs/grass.md) | A GPU-driven lawn: persistent storage, compute placement and culling, indirect LOD draws, and a matching ground surface |
+| [`@detoix/three-pieces/grass`](docs/grass.md) | A GPU-driven lawn: persistent storage, compute placement and culling, indirect LOD draws, a matching ground surface, and the lawn areas it reads from a loaded model |
 | [`@detoix/three-pieces/terrain`](docs/terrain.md) | Unbounded procedural hills and a camera-following ground grid |
 
 Each entry point depends on Three.js and on files inside its own directory, and
 on nothing else. Sky does not need grass, grass does not need terrain, and a
-host can use any one of them alone.
+host can use any one of them alone. Grass understands two kinds of ground: a
+procedural height function, which is what terrain provides, or surfaces read out
+of a loaded model. Neither is required to use it.
 
 ## Reading the comments
 

@@ -5,6 +5,16 @@ export { createLawnSurface, loadLawnPBRTextures, LAWN_UNDERLAY, normalizeLawnUnd
 export { LAWN, LAWN_COLORS, LAWN_TARGET_HUE, lawnColorsFor, CANOPY_PULL_MAX, CLUMP_PULL_MARGIN } from './preset.js';
 export { GRASS_RINGS } from './grid.js';
 export { GRASS_BACKLIGHT, normalizeBacklight } from './blade-lighting.js';
+// Where a loaded model says grass may grow: the mask `createGrass({ keepAt })`
+// culls against, and the flat height map that goes with it.
+export {
+  bakeLawnCoverage,
+  createFlatHeightMap,
+  createLawnMask,
+  landscapeLawnTag,
+  readLawnAreas,
+  triangleContains,
+} from './lawn-areas.js';
 
 const BOOLEAN_OPTIONS = [
   'shadows', 'coarseCulling', 'subgroupCulling', 'cullHysteresis',

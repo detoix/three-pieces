@@ -3,7 +3,7 @@ import test from 'node:test';
 import * as THREE from 'three/webgpu';
 import { createGPUDrivenGrass } from '../src/grass/grass.js';
 import { GrassLightingModel, GRASS_BACKLIGHT } from '../src/grass/blade-lighting.js';
-import { createFlatHeightMap } from './helpers/height-maps.js';
+import { createFlatHeightMap } from '../src/grass/index.js';
 
 function build(diffuseOnly, backlight = 'blade') {
   const { Fn, float, vec3 } = THREE.TSL;

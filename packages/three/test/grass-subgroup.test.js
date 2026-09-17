@@ -4,7 +4,7 @@ import * as THREE from 'three/webgpu';
 import { createGPUDrivenGrass } from '../src/grass/grass.js';
 import { cullDispatchSize } from '../src/grass/subgroup-compaction.js';
 import { GRASS_RINGS } from '../src/grass/grid.js';
-import { createFlatHeightMap } from './helpers/height-maps.js';
+import { createFlatHeightMap } from '../src/grass/index.js';
 
 // A scalar model of independent subgroup reservations in arbitrary execution
 // order. Verify membership and uniqueness, not globally deterministic ordering.

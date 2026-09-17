@@ -6,7 +6,7 @@ import {
   slotForWorldCell, worldCellForSlot, worldCellSeed,
 } from '../src/grass/grid.js';
 import { createGPUDrivenGrass } from '../src/grass/grass.js';
-import { createFlatHeightMap } from './helpers/height-maps.js';
+import { createFlatHeightMap } from '../src/grass/index.js';
 
 const ring = { side: 8, capacity: 64, spacing: 1, index: 0 };
 const key = (x, z) => `${x},${z}`;

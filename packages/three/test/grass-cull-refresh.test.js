@@ -6,7 +6,7 @@ import { CULL_TRANSLATION_LIMIT, CULL_ROTATION_LIMIT, CullRefreshTracker,
 import { selectCullTiles, cullTileCapacity } from '../src/grass/cull-tiles.js';
 import { GRASS_RINGS, createRingState, snapRingState } from '../src/grass/grid.js';
 import { createGPUDrivenGrass } from '../src/grass/grass.js';
-import { createFlatHeightMap } from './helpers/height-maps.js';
+import { createFlatHeightMap } from '../src/grass/index.js';
 
 const makeCamera = () => {
   const camera = new THREE.PerspectiveCamera(60, 16 / 9, .1, 100);

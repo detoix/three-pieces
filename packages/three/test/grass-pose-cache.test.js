@@ -6,7 +6,7 @@ import { createBladeGeometry } from '../src/grass/blade-geometry.js';
 import { GRASS_RINGS, hashUint } from '../src/grass/grid.js';
 import { LAWN } from '../src/grass/preset.js';
 import { GRASS_POSE_BYTES, GRASS_POSE_FLOATS, GrassBladePose, poseCrownCapacity } from '../src/grass/pose-cache.js';
-import { createFlatHeightMap } from './helpers/height-maps.js';
+import { createFlatHeightMap } from '../src/grass/index.js';
 
 test('pose storage stays within 8 MiB and overflow has room in the original crown buffers', () => {
   assert.equal(GRASS_POSE_BYTES, 64);
