@@ -19,7 +19,7 @@ process when done.
 | `shoot.mjs` | Fixed-view 1080p frames: six elevations/azimuths around the sun and away from it | Any visual change to sky, clouds, terrain or grass; before/after judgement for each change |
 | `benchmark.mjs` | GPU pass time and frame cadence along fixed camera paths, with or without timestamp instrumentation | Any change to shaders, quality, density, or render scheduling |
 | `record-motion.mjs` | 10-second WebM captures of fixed motion paths (static, turn/walk stress, seam, zenith) | Any change to the angular cache, wind handling, culling or LOD that should be reviewed in motion |
-| `measure-sky.mjs` | Rendered sky radiance and the fully fogged far band's luminance | `SKY_EXPOSURE`, the sun, the medium or the tone mapper move |
+| `measure-sky.mjs` | Rendered sky radiance and the fully fogged far band's luminance, with the instrument eye raised so the band is resolvable | `SKY_EXPOSURE`, the sun, the medium or the tone mapper move |
 | `measure-lawn-hue.mjs` | Rendered hue, saturation and luminance over six depth bands | The underlay, occlusion, lights, palette or blade coverage move (these interact, so re-sweep together) |
 | `measure-lawn-coverage.mjs` | Fraction of bare ground by distance, with the underlay painted emissive | Blade height, blade width, tillering or ring density move |
 
@@ -87,29 +87,27 @@ otherwise. Query options can be appended to `--url` directly, for example
 tools that need a specific control add it themselves and say so in their
 output.
 
-## Last known numbers
+## First hills numbers
 
-These were measured in an earlier scene that had a building and a different
-haze range, on an integrated laptop GPU. They are kept only until the hills
-demo has been measured with the tools above; replace them, do not cite them as
-current.
+Measured 2026-09-18 with the tools above, on an integrated laptop GPU at
+1920x1080 (the sweeps at 1280x720), **one trial each**. By the rules above a
+single trial is an indication and not a result, so treat these as the current
+reference points to re-measure, not as acceptance evidence. They replace the
+earlier building-scene figures, which are no longer the reference.
 
-- Sky, balanced clouds, full scene: ordinary-schedule walking about 57.6 FPS,
-  turning about 56.3 FPS, with 3.8-6.0% of intervals over 20 ms. Timed runs put
-  full-scene GPU p95 at 19.7-20.5 ms and selected cloud compute at about
-  2.3 ms median. The 1920x1080 / 60 FPS target was not met.
-- Grass in the same scene: idle, walking and turning averaged about 59.9,
-  57.8 and 59.8 FPS; GPU p95 stayed at or under 16.8 ms except walking, which
-  is the case that missed frames.
-- Bare ground on the measured coverage curve: about 40% at 3-4 m, 65% at
-  6-8 m, 95% at 16-24 m, and over 99% past 24 m, which is why the far field is
-  the underlay.
-- Rendered lawn hue: about 99 at the current palette target, against the
-  reference photograph's 99; the far field held hue across depth once the
-  canopy proxy landed.
-- Sky exposure: 7.1 is the value at which the fully fogged far band kept the
-  luminance of the flat `#b8c9b5` control (about 0.608).
+- Timed ground paths (idle, walk, turn): about 44 FPS with GPU p95
+  21.2-23.1 ms and cloud compute 3.3 ms median. The sky paths hold 60 FPS with
+  GPU p95 9.4-14.1 ms and cloud compute 1.4-1.6 ms.
+- Ordinary cadence, no timestamps: the same ground paths about 41-44 FPS; the
+  sky paths 59.7 FPS.
+- Bare ground: 59.5% at 2-3 m, 57.2% at 3-4 m, 77.2% at 6-8 m, 97.3% at
+  16-24 m and 100% past 24 m. The far ring is still not grass.
+- Rendered lawn hue: mean 100.4 over six bands, drifting +5.1 degrees from
+  near to far, at the shipped palette target of 92.
+- Sky exposure: the fully fogged band reads 0.6077 against the flat control's
+  0.6080 at `skyexposure=7.1`, so the exposure still holds the far band.
+- The 1920x1080 / 60 FPS target is not met on the ground paths.
 
-The hills haze runs 90-1100 m against the earlier scene's narrower band, and
-the terrain and framing differ, so a re-run can land on different numbers.
-Report them; do not silently change constants to match the old ones.
+The numbers move with the dials -- blade height and width, tillering, ring
+density, the palette, the haze -- so report what a re-run lands on; do not
+silently change a constant to match an older number.

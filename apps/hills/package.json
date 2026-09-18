@@ -12,5 +12,8 @@
     "@detoix/three-pieces": "workspace:*",
     "three": "0.185.0"
   },
-  "devDependencies": { "vite": "^5.0.0" }
+  "devDependencies": {
+    "playwright": "1.62.1",
+    "vite": "^5.0.0"
+  }
 }

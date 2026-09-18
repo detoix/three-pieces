@@ -42,7 +42,11 @@ export async function startHills({ adapter }) {
     hint?.setAttribute('hidden', '');
   }
 
-  const renderer = new THREE.WebGPURenderer({ antialias: true, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGPURenderer({
+    antialias: true,
+    powerPreference: 'high-performance',
+    trackTimestamp: lawn.gpuTiming,
+  });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -221,6 +225,7 @@ export async function startHills({ adapter }) {
     let frames = 0;
     let fpsSince = performance.now();
     let firstFrame = true;
+    let captureResolve = null;
 
     function animate(now) {
       const delta = Math.min(clock.getDelta(), 0.05);
@@ -230,6 +235,14 @@ export async function startHills({ adapter }) {
       sky?.update(now / 1000, camera.position);
       grass.update(camera);
       renderer.render(scene, camera);
+
+      // Reading the canvas in this callback, right after the draw, is the one
+      // moment a WebGPU canvas is guaranteed to hold the frame just rendered.
+      if (captureResolve) {
+        const resolve = captureResolve;
+        captureResolve = null;
+        resolve(renderer.domElement.toDataURL('image/png'));
+      }
 
       frames += 1;
       if (options.ui && now - fpsSince >= 500) {
@@ -250,7 +263,16 @@ export async function startHills({ adapter }) {
 
     await renderer.setAnimationLoop(animate);
     window.addEventListener('beforeunload', dispose, { once: true });
-    window.__hills = { renderer, camera, scene, grass, surface, sky, ground, lighting, options, lawn, dispose };
+    window.__hills = {
+      renderer, camera, scene, grass, surface, sky, ground, lighting, options, lawn,
+      // Scripts drive the camera from outside; these two are for them. `groundAt`
+      // is the same function the walk controls use, so a script can stand the
+      // camera on the terrain; `capture` resolves with the next rendered frame
+      // as a PNG data URL.
+      groundAt,
+      capture: () => new Promise((resolve) => { captureResolve = resolve; }),
+      dispose,
+    };
   } catch (error) {
     dispose();
     throw error;

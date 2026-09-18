@@ -184,6 +184,10 @@ export function readSceneOptions(search = '', devicePixelRatio = 1) {
       0.5,
       3,
     ),
+    // Whether the renderer asks WebGPU for pass timestamps. Off by default:
+    // timestamp capture and readback change frame cadence, so this is for a
+    // measurement run (`?gputiming=on`) and never for ordinary playback.
+    gpuTiming: params.get('gputiming') === 'on',
   };
 }
 

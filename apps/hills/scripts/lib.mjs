@@ -1,0 +1,190 @@
+/**
+ * Shared plumbing for the measurement scripts in this directory.
+ *
+ * The rules these helpers enforce are the ones `docs/measuring.md` names: a
+ * loopback URL, the full Chromium channel rather than the GPU-less headless
+ * shell, a hardware adapter check, and a source hash on both sides of a run so
+ * a file that changed mid-run invalidates it.
+ */
+import { createHash } from 'node:crypto';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { chromium } from 'playwright';
+
+export const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+/** `--key value` and `--key=value`; positionals collect in `_`. */
+export function parseArgs(argv, { values = [] } = {}) {
+  const args = { _: [] };
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (!arg.startsWith('--')) {
+      args._.push(arg);
+      continue;
+    }
+    const [name, inline] = arg.slice(2).split('=');
+    if (!values.includes(name)) throw new Error(`Unknown option --${name}`);
+    const value = inline ?? argv[index + 1];
+    if (value === undefined) throw new Error(`--${name} needs a value`);
+    args[name] = value;
+    if (inline === undefined) index += 1;
+  }
+  return args;
+}
+
+/** Only a loopback HTTP URL is measured; anything else is a different machine. */
+export function loopbackUrl(base = 'http://127.0.0.1:5173/') {
+  const url = new URL(base);
+  if (url.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) {
+    throw new Error(`Use an HTTP loopback URL, not ${url.href}`);
+  }
+  return url;
+}
+
+export function appUrl(url, params = {}) {
+  for (const [name, value] of Object.entries(params)) {
+    if (value === null || value === undefined) continue;
+    url.searchParams.set(name, String(value));
+  }
+  return url;
+}
+
+/**
+ * The full Chromium build, not Playwright's default headless shell, which has
+ * no GPU process and therefore no WebGPU at all.
+ */
+export async function launchBrowser() {
+  return chromium.launch({
+    channel: 'chromium',
+    args: [
+      '--enable-unsafe-webgpu',
+      '--enable-features=Vulkan',
+      '--ignore-gpu-blocklist',
+      '--enable-gpu',
+    ],
+  });
+}
+
+export async function openHills(browser, url, viewport = { width: 1280, height: 720 }) {
+  const context = await browser.newContext({ viewport, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  page.on('pageerror', (error) => console.error('[pageerror]', error.message));
+  page.on('console', (message) => {
+    // The demo has no favicon; a 404 for one is not a page error.
+    if (message.type() === 'error' && !/Failed to load resource/.test(message.text())) {
+      console.error('[page]', message.text());
+    }
+  });
+  await page.goto(url.href, { waitUntil: 'load', timeout: 60000 });
+  await page.waitForFunction(() => window.__ready === true, null, { timeout: 180000 });
+  return { context, page };
+}
+
+/**
+ * What actually rendered, from the renderer's own device rather than a
+ * preflight adapter request. A software classification is fatal; an unknown
+ * one is recorded and allowed, because a real device can carry a name no
+ * keyword list knows.
+ */
+export async function adapterOf(page) {
+  return page.evaluate(() => {
+    const info = window.__hills?.renderer?.backend?.device?.adapterInfo;
+    if (!info) return null;
+    const fields = [
+      'vendor', 'architecture', 'device', 'description',
+      'subgroupMinSize', 'subgroupMaxSize', 'isFallbackAdapter',
+    ];
+    const plain = Object.fromEntries(
+      fields.filter((key) => info[key] !== undefined).map((key) => [key, info[key]]),
+    );
+    const text = Object.values(plain).join(' ').toLowerCase();
+    const software = info.isFallbackAdapter === true ||
+      /swiftshader|llvmpipe|lavapipe|software|microsoft basic render/.test(text);
+    const identified =
+      /intel|nvidia|amd|radeon|apple|qualcomm|mali|iris|arc|0x8086|0x10de|0x1002/.test(text);
+    return {
+      classification: software ? 'software' : identified ? 'hardware' : 'unknown',
+      info: plain,
+    };
+  });
+}
+
+export async function requireHardwareAdapter(page) {
+  const adapter = await adapterOf(page);
+  if (!adapter) throw new Error('The renderer exposed no adapter info; cannot trust this run.');
+  if (adapter.classification === 'software') {
+    throw new Error(`A software adapter rendered this run: ${JSON.stringify(adapter.info)}`);
+  }
+  if (adapter.classification === 'unknown') {
+    console.warn(`[adapter] Could not classify ${JSON.stringify(adapter.info)}; recording it as unknown.`);
+  }
+  return adapter;
+}
+
+const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', '.git', 'measurements', 'shots']);
+
+/** Content hash of everything tracked plus the scripts, for before/after checks. */
+export async function hashTree(root = APP_ROOT) {
+  const files = [];
+  async function walk(directory) {
+    const entries = await readdir(directory, { withFileTypes: true });
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      if (SKIPPED_DIRECTORIES.has(entry.name)) continue;
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) await walk(path);
+      else if (entry.isFile()) files.push(path);
+    }
+  }
+  await walk(root);
+  const hash = createHash('sha256');
+  for (const file of files) {
+    hash.update(relative(root, file));
+    hash.update(await readFile(file));
+  }
+  return hash.digest('hex');
+}
+
+export function summarize(values) {
+  const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+  if (!sorted.length) return { count: 0, median: null, p95: null, p99: null };
+  const quantile = (q) => sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)];
+  return { count: sorted.length, median: quantile(0.5), p95: quantile(0.95), p99: quantile(0.99) };
+}
+
+export function sanitizeLabel(label) {
+  if (!/^[a-z0-9_-]+$/i.test(label)) {
+    throw new Error('A label may contain only letters, digits, hyphens and underscores.');
+  }
+  return label;
+}
+
+export function defaultLabel(prefix) {
+  return `${prefix}-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}`;
+}
+
+export async function outputDir(flag, folder = 'measurements') {
+  const directory = resolve(flag ?? join(APP_ROOT, folder));
+  await mkdir(directory, { recursive: true });
+  return directory;
+}
+
+export async function writeJson(directory, name, data) {
+  await mkdir(directory, { recursive: true });
+  const path = join(directory, name);
+  await writeFile(path, `${JSON.stringify(data, null, 2)}\n`);
+  return path;
+}
+
+export const toLinear = (value) => {
+  const channel = value / 255;
+  return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+};
+
+export const luminance = ([red, green, blue]) =>
+  0.2126 * toLinear(red) + 0.7152 * toLinear(green) + 0.0722 * toLinear(blue);
+
+export const hex = ([red, green, blue]) =>
+  `#${[red, green, blue].map((channel) => Math.round(channel).toString(16).padStart(2, '0')).join('')}`;

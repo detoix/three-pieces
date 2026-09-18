@@ -1,3 +1,7 @@
 node_modules/
 dist/
 .DS_Store
+
+# Measurement outputs: results, not source.
+apps/hills/measurements/
+apps/hills/shots/
