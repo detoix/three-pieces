@@ -11,7 +11,7 @@ import * as THREE from 'three/webgpu';
  * The sky's lighting probe reports the sun's beam and the hemisphere's
  * irradiance in the model's own units, where the sun above the atmosphere is
  * 1. Handing those to the lights directly would be the physically coherent
- * thing and it is not what happens here, because the page is not physically
+ * thing and it is not what happens here, because the scene is not physically
  * balanced to begin with: measured off the probe, a real sun at this elevation
  * delivers 10.2 times the irradiance of its own sky onto flat ground, and
  * these two lights deliver 1.34. Adopting the real ratio deepens every shadow
@@ -34,7 +34,7 @@ import * as THREE from 'three/webgpu';
  *
  * `test/sky-atmosphere.test.js` holds the two authored luminances, so changing
  * `#fff0cd` or 3.2 fails there and points back at this comment rather than
- * silently re-anchoring the page.
+ * silently re-anchoring the lights.
  */
 export const AUTHORED_SUN = {
   color: '#fff0cd',

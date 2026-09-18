@@ -100,7 +100,7 @@ export interface Sky {
   dispose(): void;
 }
 
-/** No DOM, scene, camera, light or renderer ownership. See docs/sky-api.md. */
+/** No DOM, scene, camera, light or renderer ownership. See docs/sky.md. */
 export function createSky(options: SkyOptions): Sky;
 
 /** Unit direction, +Y up, azimuth from +Z toward +X. Inputs are finite degrees. */

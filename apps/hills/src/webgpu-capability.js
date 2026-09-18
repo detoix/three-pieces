@@ -1,4 +1,4 @@
-// Keep the viewer's browser gate independent of the rendering packages.
+// Keep the browser gate independent of the rendering packages.
 export function describeWebGPUSupport({ secureContext, gpu }) {
   if (!secureContext) {
     return {
@@ -14,7 +14,7 @@ export function describeWebGPUSupport({ secureContext, gpu }) {
       supported: false,
       code: 'webgpu-unavailable',
       message:
-        'This browser or GPU does not expose WebGPU, which this field requires.',
+        'This browser or GPU does not expose WebGPU, which this demo requires.',
     };
   }
 

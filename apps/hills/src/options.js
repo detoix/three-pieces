@@ -12,8 +12,8 @@ import {
 // the package's options for A/B comparison and for framing a recording.
 
 /**
- * Where the sun has always stood on this page, now written as the two angles
- * the sky needs rather than as an offset.
+ * Where the sun stands in the demo, written as the two angles the sky needs
+ * rather than as an offset.
  *
  * It is one number in two places otherwise: the directional light aims the
  * shading and the atmosphere aims the scattering, and a sky whose sun disk is
@@ -78,7 +78,8 @@ export function readSceneOptions(search = '', devicePixelRatio = 1) {
     // crown's facing its 45 cm clump dictates and `tillerfan` is the yaw its
     // own blades spread over; between them they decide whether a patch of
     // lawn presents one normal to the sun or a spread of them. `?clumppull=1.2
-    // &tillerfan=0.7` restores the meadow-grained pair the page shipped with.
+    // &tillerfan=0.7` restores the older meadow-grained pair, where the clump
+    // outvoted the crown and every patch presented one shared normal.
     // A pull within a tenth of 1 can cancel a crown's heading to a zero
     // vector, so the dial steps over that band rather than clamping into it.
     clumpPull: awayFromOne(number('clumppull', 0.15, 0, 4)),
@@ -109,7 +110,7 @@ export function readSceneOptions(search = '', devicePixelRatio = 1) {
     // How much of the lawn's own variation it asserts: the density swing
     // between poor and rich ground, and how much of a crown's height its patch
     // decides rather than its own hash. `?variation=0` is a lawn that varies
-    // only by the narrow amount it shipped with.
+    // only by the preset's own narrow spread.
     variation: number('variation', 1, 0, 2),
     // How far the blades' shading normal is pulled toward the ground's, as a
     // multiple of the preset's near/far pair. A blade is 3 mm wide and a pixel
@@ -117,7 +118,7 @@ export function readSceneOptions(search = '', devicePixelRatio = 1) {
     // literal facing makes the clumps that happen to face the sun bright slabs
     // beside dark ones; pulling the normal toward the ground's is what those
     // unresolved blades actually average to. `?canopy=0` is the control: every
-    // blade shaded by its own facing, as the page shipped. The transmission
+    // blade shaded by its own facing, with no canopy pull. The transmission
     // term is not on this dial -- it keeps the blade's own normal whatever
     // this says, or the lawn stops being backlit as it is pulled flat.
     canopy: number('canopy', 1.3, 0, 1.6),
@@ -135,20 +136,20 @@ export function readSceneOptions(search = '', devicePixelRatio = 1) {
     // Hue the whole lawn palette is drawn around, in degrees -- blades, the
     // transmitted green and the tint on the Grass004 underlay together. See
     // `LAWN_TARGET_HUE`: turfgrass research puts healthy lawn between 60 and
-    // 120, a reference photograph sits at 99, and this page rendered at 75.
+    // 120, a reference photograph sits at 99, and this lawn rendered at 75.
     // `?lawnhue=86.7` is the palette as it was authored.
     lawnHue: number('lawnhue', LAWN_TARGET_HUE, 60, 140),
     // Multipliers on the blade's modelled size. Height is the one that moves
     // coverage: at a 1.7 m eye you see the ground at 12-23 degrees, where
     // 93-97% of a blade's projected extent is its height and almost none is
-    // its width. `?bladeheight=0.73&bladewidth=0.77` is the 4-8 cm by 3-5 mm blade the
-    // page shipped with.
+    // its width. `?bladeheight=0.73&bladewidth=0.77` is the 4-8 cm by 3-5 mm
+    // blade from before the coverage sweep.
     bladeHeight: number('bladeheight', 0.65, 0.3, 4),
     bladeWidth: number('bladewidth', 0.65, 0.3, 4),
     shadows: params.get('shadows') !== 'off',
     underlay: normalizeLawnUnderlay(params.get('underlay')),
     // `?sky=flat` is the A/B: the `#b8c9b5` clear colour and the matching
-    // linear fog this page shipped with, with no atmosphere baked at all.
+    // linear fog the demo had before the sky, with no atmosphere baked at all.
     sky: params.get('sky') === 'flat' ? 'flat' : 'atmosphere',
     clouds: params.get('clouds') !== 'off',
     cloudQuality: ['low', 'balanced', 'high'].includes(params.get('cloudquality')) ? params.get('cloudquality') : 'balanced',
@@ -157,7 +158,7 @@ export function readSceneOptions(search = '', devicePixelRatio = 1) {
     // Whether the two lights take their colour from the atmosphere. This is
     // the A/B that isolates the lighting from the sky: `?skylights=off` keeps
     // the authored `#fff0cd` sun and neutral hemisphere under a physical sky,
-    // which is the page as the sky first landed on it.
+    // which is how the scene was lit when the sky first landed.
     skyLights: params.get('skylights') !== 'off',
     // The sun in render units, and the one judgement call in the sky. See
     // `SKY_EXPOSURE`; it was measured off the render rather than chosen.

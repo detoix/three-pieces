@@ -25,8 +25,8 @@ test('the sky defaults leave the shipped sun exactly where it was', () => {
   assert.equal(options.sunAzimuth, azimuth);
   assert.equal(options.skyMultiScatter, 1);
 
-  // `?sky=flat` is the control and must reach back to the exact shipped page,
-  // which means it may not quietly keep the atmosphere alive behind it.
+  // `?sky=flat` is the control and must reach back to the flat scene, which
+  // means it may not quietly keep the atmosphere alive behind it.
   assert.equal(readSceneOptions('?sky=flat').sky, 'flat');
   assert.equal(readSceneOptions('?sky=anything').sky, 'atmosphere');
 
@@ -36,7 +36,7 @@ test('the sky defaults leave the shipped sun exactly where it was', () => {
   assert.equal(moved.skyMultiScatter, 0);
 });
 
-test('the sky exposure is clamped rather than allowed to black the page out', () => {
+test('the sky exposure is clamped rather than allowed to black the image out', () => {
   assert.ok(readSceneOptions('?skyexposure=0').skyExposure >= 0.5);
   assert.ok(readSceneOptions('?skyexposure=1000').skyExposure <= 60);
   assert.equal(

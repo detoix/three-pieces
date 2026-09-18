@@ -1,10 +1,9 @@
 /**
- * The field sky's dependency-free scattering contract.
+ * The sky's dependency-free scattering contract.
  *
- * This module is the scalar twin of `sky-nodes.js`, in the same relationship
- * `bedKeepsLawnAt` has to `bed-lawn-mask.js`: the arithmetic is written once
- * here, in plain JavaScript that `node --test` can run, and transcribed into
- * TSL there. Everything the shader needs to agree about -- the medium, the
+ * This module is the scalar twin of `sky-nodes.js`: the arithmetic is written
+ * once here, in plain JavaScript that `node --test` can run, and transcribed
+ * into TSL there. Everything the shader needs to agree about -- the medium, the
  * ray/sphere geometry, and above all the three lookup-table parameterizations
  * -- lives in this file, because a lookup table whose write mapping and read
  * mapping disagree produces a sky that is merely *wrong* rather than broken,
@@ -43,14 +42,14 @@ export const ATMOSPHERE = Object.freeze({
   ozoneCentre: 25,
   ozoneWidth: 15,
 
-  // What the multiple-scattering table bounces light off. This page stands on
-  // a lawn, so the ground under it is not Bruneton's neutral 0.3 grey: a green
+  // What the multiple-scattering table bounces light off. The ground under
+  // this sky is a lawn, so it is not Bruneton's neutral 0.3 grey: a green
   // planet puts green back into the sky near the horizon, which is the half of
   // the horizon colour that is not Rayleigh.
   groundAlbedo: Object.freeze([0.12, 0.18, 0.1]),
 
-  // Above the atmosphere the sun is white by construction. Every warm cast the
-  // field sees is Rayleigh taking blue out of the beam on the way down, which
+  // Above the atmosphere the sun is white by construction. Every warm cast in
+  // the image is Rayleigh taking blue out of the beam on the way down, which
   // is the whole point of transmitting it rather than authoring it.
   solarIrradiance: Object.freeze([1, 1, 1]),
 });

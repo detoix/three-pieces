@@ -699,16 +699,16 @@ export function createFieldSky({
   );
 
   /**
-   * Aerial perspective, as far as a 170 m field can honestly claim it.
+   * Aerial perspective, as far as a linear distance ramp can honestly claim it.
    *
-   * Clear-air extinction over 100 m is two parts in a thousand: the haze this
-   * page shipped with was never Rayleigh, it was a stand-in for the humidity
-   * and aerosol the model has no business resolving at this scale. So the
-   * *shape* stays exactly what it was -- a linear ramp between `near` and
-   * `far` -- and only the colour changes, to the sky the fragment is actually
-   * standing in front of. That is the whole reason the flat background could
-   * not simply be replaced: a blue sky over a green horizon haze reads as a
-   * bug, and matching them by hand is what the table already knows.
+   * Clear-air extinction over 100 m is two parts in a thousand: a ramp is not
+   * Rayleigh, it is a stand-in for the humidity and aerosol the model has no
+   * business resolving at this scale. So the *shape* stays what it was -- a
+   * linear ramp between `near` and `far` -- and only the colour changes, to the
+   * sky the fragment is actually standing in front of. That is the whole reason
+   * the flat background could not simply be replaced: a blue sky over a green
+   * horizon haze reads as a bug, and matching them by hand is what the table
+   * already knows.
    */
   const fogNodeFor = ({ near, far }) => {
     const direction = positionWorld.sub(cameraPosition);

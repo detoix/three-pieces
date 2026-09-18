@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 
-// Viewer input and DOM ownership stay outside the grass rendering package.
+// Input handling and DOM ownership stay outside the grass rendering package.
 
 const KEY_ACTION = new Map([
   ['KeyW', 'forward'],

@@ -150,7 +150,7 @@ function validateHeightMap(heightMap) {
 
 /**
  * Public Three.js WebGPU grass entry point. The host owns the renderer, terrain
- * texture, coverage mask and shared lawn surface. See docs/grass-api.md.
+ * texture, coverage mask and shared lawn surface. See docs/grass.md.
  */
 export function createGrass(options) {
   if (!options || typeof options !== 'object' || Array.isArray(options)) {

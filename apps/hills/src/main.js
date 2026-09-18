@@ -30,8 +30,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       showFailure('No WebGPU adapter', 'The browser exposes WebGPU, but it could not open this GPU.');
       return;
     }
-    // Same split as the building page: the capability gate is this entry's
-    // only static dependency.
+    // The capability gate is this entry's only static dependency: the runtime
+    // is fetched only once WebGPU is known to be there.
     const { startHills } = await import('./runtime.js');
     await startHills({ adapter });
   } catch (error) {

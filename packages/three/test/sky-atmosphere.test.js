@@ -35,9 +35,9 @@ import {
 } from '../src/sky/lights.js';
 
 /**
- * `atmosphere.js` is the scalar twin of the sky's TSL, in the relationship
- * `bedKeepsLawnAt` has to `bed-lawn-mask.js`. These tests cover what a GPU
- * cannot be asked about from here.
+ * `atmosphere.js` is the scalar twin of the sky's TSL: the arithmetic lives
+ * once in plain JavaScript these tests can run and is transcribed into the
+ * shader. They cover what a GPU cannot be asked about from here.
  *
  * The three lookup-table parameterizations get the most attention, because
  * they are the failure nobody sees: a table whose write mapping and read

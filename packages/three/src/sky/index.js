@@ -44,7 +44,7 @@ const atmosphereTables = snapshot(Object.entries(SKY_LUT).map(([name, table]) =>
 
 /**
  * Independent Three.js WebGPU sky. The host owns its scene, renderer, lights,
- * camera and frame loop. See docs/sky-api.md for units and lifecycle semantics.
+ * camera and frame loop. See docs/sky.md for units and lifecycle semantics.
  */
 export function createSky(options = {}) {
   if (options === null || typeof options !== 'object' || Array.isArray(options)) {

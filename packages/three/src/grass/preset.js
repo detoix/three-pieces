@@ -8,10 +8,10 @@
 export const LAWN = Object.freeze({
   /** Blades per square metre of ground. Lawn territory starts around 150.
    *
-   *  This and `radius` multiply, and between them they are what the page costs:
-   *  at these defaults there are about half a million blades, which on a
-   *  mid-range GPU is roughly as much grass as can be drawn while the mixed
-   *  plant field is still on screen.
+   *  This and `radius` multiply, and between them they are what the frame
+   *  costs: at these defaults there are about half a million blades, which on
+   *  a mid-range GPU is roughly as much grass as can be drawn alongside
+   *  everything else in the scene.
    *
    *  It is worth knowing what that buys: 110 blades per square metre is one
    *  every 9.5 cm, and a real lawn is nearer ten thousand. At a standing eye
@@ -40,7 +40,7 @@ export const LAWN = Object.freeze({
    *  of them survive the cull. The honest risk is the look: past some height a
    *  lawn reads as unmown rather than dense. That is a judgement to make on
    *  screen, which is what `?bladeheight=` is for -- 0.73 is the 4-8 cm
-   *  this shipped with. */
+   *  blade before the coverage sweep raised it. */
   minHeight: 0.055,
   maxHeight: 0.105,
   /** Metres across at the base. Real turf grass is 2-4 mm; these are above it.
@@ -64,7 +64,7 @@ export const LAWN = Object.freeze({
    *
    *  So this is a coverage device aimed at one band, and it should come back
    *  down to life size when the far field stops being bought with blade
-   *  geometry. `?bladewidth=0.77` is the 3.1-5.0 mm the page shipped with. */
+   *  geometry. `?bladewidth=0.77` is the 3.1-5.0 mm it was widened from. */
   minWidth: 0.004,
   maxWidth: 0.0065,
   /** Exponent of the blade's width falloff: `(1 - y) ** taper`.
@@ -224,7 +224,7 @@ export const LAWN = Object.freeze({
    *  centimetres of its neighbours, and the light reaching the bottom third of
    *  it has been through several of them. Nothing in this lawn models that --
    *  blades cast no shadow-map silhouette on purpose, at 4-8 cm it costs more
-   *  than it returns -- so without this the field is a plane of evenly lit
+   *  than it returns -- so without this the lawn is a plane of evenly lit
    *  strips and reads flat from above, which is the angle a walking camera
    *  sees it from.
    *
@@ -243,7 +243,7 @@ export const LAWN = Object.freeze({
    *  the two differ and every blade meets the ground at a step in brightness.
    *
    *  Nothing was doing this. The blades are `castShadow = false` on purpose --
-   *  a few hundred thousand shadow-casting slivers is not a trade this page
+   *  a few hundred thousand shadow-casting slivers is not a trade this package
    *  makes -- so the ground beneath them was lit as an open field in full sun
    *  while being looked at through a canopy. `assets/grass004/README.md` says
    *  AO was left out of the asset because "the dense real blade layer already
@@ -443,11 +443,11 @@ export const LAWN = Object.freeze({
    *  ground, but a confounded test that comes out backwards is not evidence
    *  for shipping it either.
    *
-   *  So the code, the field and the dial are here and the default is 0, which
-   *  builds no node at all and leaves the shader exactly as it was. `?grain=`
-   *  turns it on for anyone who wants to take the question further -- the
-   *  honest next step is a sun sweep over fixed ground rather than a camera
-   *  sweep over moving ground. */
+   *  So the code, the measurement and the dial are here and the default is 0,
+   *  which builds no node at all and leaves the shader exactly as it was.
+   *  `?grain=` turns it on for anyone who wants to take the question further:
+   *  the honest next step is a sun sweep over fixed ground rather than a
+   *  camera sweep over moving ground. */
   canopyGrain: 0,
   /** Radians the shading normal splays out at a blade's edge.
    *
@@ -527,8 +527,9 @@ export const LAWN = Object.freeze({
    *  what the ground looks like close up -- that is a separate fault and this
    *  is not aimed at it.
    *
-   *  Re-measure with the script when blade height, width, tillering or ring
-   *  density move; both numbers come from the curve, not from taste.
+   *  Re-measure with `apps/hills/scripts/measure-lawn-coverage.mjs` when blade
+   *  height, width, tillering or ring density move; both numbers come from the
+   *  curve, not from taste.
    *  `?proxy=0` is the A/B. */
   canopyProxyFrom: 8,
   canopyProxyTo: 26,
@@ -549,7 +550,7 @@ export const LAWN = Object.freeze({
    *  only one here calibrated against something outside this repository. Real
    *  grass does brighten with distance -- haze -- but by a bounded amount:
    *  three usable CC-BY photographs measure **+20%, +37% and +50%** from their
-   *  nearest ground to their farthest, mean +36. This page measured +51%
+   *  nearest ground to their farthest, mean +36. The render here measured +51%
    *  before the proxy and +70% after it, outside that range in both cases.
    *
    *  Note this is not compensating for missing haze: there is no fog in this
@@ -646,7 +647,7 @@ export const GRASS004_ALBEDO_MEAN = '#606c30';
  * of a well-fed lawn measures **99 degrees** and holds it at every depth, near
  * the upper middle of that range.
  *
- * This page rendered at **75**, scoring 0.26 on that axis against the
+ * The lawn first rendered at **75**, scoring 0.26 on that axis against the
  * photograph's 0.65. Three things stacked the same way to get there: the blade
  * greens were authored at 87-91, the Grass004 underlay is 72, and the sun is
  * `#fff0cd` -- a warm light, which costs another 5 to 7 degrees on the way
@@ -685,8 +686,9 @@ export const GRASS004_ALBEDO_MEAN = '#606c30';
  * The lesson is the dependency, not the number: this is a property of the
  * rendered image, so it has to be re-swept after any change to the underlay,
  * the occlusion, the lights or the blades' coverage. A rendered-hue sweep
- * is that sweep, and every number above came out of it. Two dials move it at a
- * glance -- `?proxy=0` drops the rendered mean about 5 degrees and
+ * (`apps/hills/scripts/measure-lawn-hue.mjs`) is that sweep, and every number
+ * above came out of it. Two dials move it at a glance -- `?proxy=0` drops the
+ * rendered mean about 5 degrees and
  * `?groundao=1` drops it about 1, the latter being the *opposite* of what this
  * comment used to claim and the same direction as the `groundCanopyAO` note
  * three paragraphs up. `?lawnhue=86.7` is the palette as it was authored.

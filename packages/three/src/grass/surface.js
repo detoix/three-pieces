@@ -130,7 +130,8 @@ export async function loadLawnPBRTextures({ loader } = {}) {
  *   photograph, so it cannot be recoloured, only multiplied.
  * @param {boolean} [options.projectedProxy] Opt-in projected-size/density canopy A/B.
  * @param {number} [options.proxyBladeWidth] Mean authored blade width in metres,
- *   including the viewer's width multiplier, before minimum-pixel widening.
+ *   including any width multiplier the caller applied, before minimum-pixel
+ *   widening.
  * @param {Function} [options.heightAt] Optional TSL `worldXZ -> height` function.
  *   When given, both ground materials lift every vertex of a flat XZ grid to it
  *   and shade with its slope, so one camera-following grid can be unbounded

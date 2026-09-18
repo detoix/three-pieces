@@ -211,8 +211,8 @@ test('the blade is modelled near life size, and never back to a spike', () => {
   assert.ok(
     LAWN.maxWidth <= 0.008,
     `a ${(LAWN.maxWidth * 1000).toFixed(1)} mm blade is back in the 8-14 mm ` +
-      'this shipped with, which is what made the lawn read as fat spikes -- ' +
-      'no coverage measurement buys that back',
+      'range that made the lawn read as fat spikes -- no coverage measurement ' +
+      'buys that back',
   );
   // The oversizing is a device, not the model. Keep it inside twice life size
   // so it stays something a later change can hand back to the far field.
@@ -253,7 +253,7 @@ test('the hue correction moves hue and nothing else', () => {
   // Turfgrass research scores lawn colour with the Dark Green Colour Index,
   // whose hue transform is `(H - 60) / 60` -- 60 degrees is the yellow end of
   // a lawn and 120 the deep-green end. A reference photograph of a well-fed
-  // lawn sits at 99 and holds it at every depth. This page rendered at 75.
+  // lawn sits at 99 and holds it at every depth. This lawn rendered at 75.
   const toLinear = (channel) =>
     channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
   const parse = (hex) =>

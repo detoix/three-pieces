@@ -168,8 +168,8 @@ test('the clump word keeps a heading finer than the eye and a patch to a byte', 
   // smoothstep. Neither can spend more than a byte usefully.
   //
   // The quantity the byte sets is the *fraction*, not the millimetres. This
-  // asserted the millimetres against a constant written for the 4-8 cm blade
-  // the page shipped with, so growing the blade to 5.5-10.5 cm failed it --
+  // asserted the millimetres against a constant written for the earlier 4-8 cm
+  // blade, so growing the blade to 5.5-10.5 cm failed it --
   // reporting a packing fault when the packing had not changed and the blade
   // had. What a byte has to be fine enough for is the eye, and the eye's limit
   // here is a pixel.
@@ -180,7 +180,7 @@ test('the clump word keeps a heading finer than the eye and a patch to a byte', 
       'of a blade, which is a step in length a patch of crowns shares',
   );
   // A pixel covers `2 * tan(fov / 2) / rows` metres per metre of distance:
-  // 1.67 mm at a metre, for the field's 62-degree camera in a 720-row buffer.
+  // 1.67 mm at a metre, for the scene's 62-degree camera in a 720-row buffer.
   // A metre is about as close as a blade tip is ever rendered, so a step this
   // far under a pixel there is under one everywhere.
   const PIXEL_AT_ONE_METRE = 0.00167;

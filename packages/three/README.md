@@ -21,8 +21,8 @@ and what it was measured against. Two conventions there. A `?dial=` names a URL
 parameter of the demo in `apps/hills`, which exposes these options for A/B
 comparison -- the package itself reads plain option objects. And "measured"
 means measured off a render on real hardware, mostly at 1280x720 on an
-integrated GPU; the sweeps themselves live in the repository this code grew up
-in, which is a plant generator rather than a renderer.
+integrated GPU; the sweeps that produced those numbers live in
+`apps/hills/scripts/`, and `docs/measuring.md` says when a number counts.
 
 ## Requirements
 
