@@ -29,6 +29,16 @@ for a low sun, `?clouds=off`, `?sky=flat`, `?backlight=off`, `?canopy=0`,
 `?underlay=solid`, `?lawnhue=`, `?bladeheight=`. They are read in
 `apps/hills/src/options.js`, which is demo code rather than package API.
 
+## Docs
+
+`packages/three/docs/` holds each piece's public API and design record:
+[sky](packages/three/docs/sky.md) and
+[sky internals](packages/three/docs/sky-internals.md),
+[grass](packages/three/docs/grass.md) and
+[grass internals](packages/three/docs/grass-internals.md), and
+[terrain](packages/three/docs/terrain.md). `docs/` at the root has the
+[roadmap](docs/roadmap.md) and [how to measure](docs/measuring.md).
+
 ## Why a monorepo
 
 One version, one changelog and one place to look, with the pieces kept
