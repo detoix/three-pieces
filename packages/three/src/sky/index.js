@@ -153,6 +153,13 @@ export function createSky(options = {}) {
     backgroundNode,
     skyRadianceNode: atmosphere.skyRadianceNode,
     clouds: cloudDiagnostics,
+    // The sun's beam through the clouds to a world position (metres; the
+    // fragment's own by default). A host multiplies its sun by it, most simply
+    // as that light's shadow; see docs/sky.md.
+    cloudShadowNode: volume ? worldPosition => {
+      assertAlive();
+      return volume.shadowNode(worldPosition);
+    } : null,
     get sunDirection() { return Object.freeze(atmosphere.sunDirection.value.toArray()); },
     get ready() { return ready; },
     get disposed() { return disposed; },

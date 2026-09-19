@@ -6,7 +6,9 @@
  * and the sun's colour all decide what a pixel of lawn is made of, so the
  * number has to be re-swept after any of them moves. This drives the flat
  * ground (`hills=0`) in headless Chromium on hardware WebGPU, pitches the
- * camera down 28 degrees and averages six depth bands.
+ * camera down 28 degrees and averages six depth bands. Cloud shadows are off
+ * (`cloudshadows=off`): the palette is calibrated in sunlight, and a cloud's
+ * shadow drifting through a band is weather, not the lawn's colour.
  *
  * The mean is the mean *of the band means*, not of the pixels: a pitched
  * camera gives the near field an order of magnitude more rows than the far,
@@ -30,7 +32,7 @@ const label = sanitizeLabel(args.label ?? defaultLabel('lawn-hue'));
 const pitch = Number(args.pitch ?? 28);
 const width = Number(args.width ?? 1280);
 const height = Number(args.height ?? 720);
-const url = appUrl(loopbackUrl(args.url), { ui: 0, hills: 0 });
+const url = appUrl(loopbackUrl(args.url), { ui: 0, hills: 0, cloudshadows: 'off' });
 const directory = join(await outputDir(args.out), label);
 await mkdir(directory, { recursive: true });
 

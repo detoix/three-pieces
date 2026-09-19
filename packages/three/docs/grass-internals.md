@@ -12,8 +12,9 @@ this one was reconciled against the code and is the one to trust.
 A realistic, short, mown residential lawn with **no wind**: blades a few
 centimetres tall, narrow and close together, seen from a walking eye height.
 Blades cast no shadows; they receive the scene's when the host asks for it
-(`shadows`, on by default in the package, off in the hills demo, which has no
-shadow map). The host owns the renderer,
+(`shadows`, on by default in the package). The hills demo turns it on for the
+clouds' shadows, which reach the blades through the sun's light rather than
+through a shadow map. The host owns the renderer,
 terrain, camera and frame loop; the package owns blade geometry, placement,
 culling, storage and the shared lawn surface.
 
@@ -117,9 +118,11 @@ triangle. Most leaves have clipped tips with one pointed younger leaf per four
 tillers. Tiller identity is kept even where local positions coincide, because
 the vertex stage derives each tiller's bend, heading and crown offset from the
 vertex index. Receiving shadows is the `shadows` option, which sets the
-blades' `receiveShadow`; it costs a shadow-map lookup per blade fragment only
-when a light casts shadows. The hills demo has no shadow-casting light and
-passes `false`.
+blades' `receiveShadow`; it costs whatever the light's shadow costs per blade
+fragment, and only when a light casts shadows. In the hills demo that light is
+the sun carrying the sky's cloud shadow node, a single texture read, and the
+light through the blades is shaded with the rest because
+`GrassLightingModel` reads the already shadowed light colour.
 
 Lighting is diffuse plus transmission, with three deliberate departures from a
 stock `PhysicalLightingModel`:

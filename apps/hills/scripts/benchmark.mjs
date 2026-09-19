@@ -14,7 +14,10 @@
  * before and after the run, the adapter that actually rendered is recorded,
  * every case gets a warmup before its sample window, and the cloud compute
  * figure selects the sky's own compute passes through
- * `clouds.stats.computeNodeIds` rather than guessing from pass names.
+ * `clouds.stats.computeNodeIds` rather than guessing from pass names. The
+ * cloud shadow map's passes are attributed the same way, through
+ * `clouds.stats.shadow.computeNodeIds`, and reported apart: they run only in
+ * the frames that march a new map, so they are summarized over those frames.
  *
  *   node scripts/benchmark.mjs --label sky-timed --mode timed
  *   node scripts/benchmark.mjs --label grass-cadence --mode cadence \
@@ -79,6 +82,10 @@ try {
     const skyAvailable = Array.isArray(nodeIds) && nodeIds.length > 0 &&
       nodeIds.every((id) => Number.isSafeInteger(id) && id >= 0);
     const skyIdSet = new Set(skyAvailable ? nodeIds : []);
+    const shadowIds = cloudStats?.shadow?.computeNodeIds;
+    const shadowAvailable = Array.isArray(shadowIds) && shadowIds.length > 0 &&
+      shadowIds.every((id) => Number.isSafeInteger(id) && id >= 0);
+    const shadowIdSet = new Set(shadowAvailable ? shadowIds : []);
 
     const { heading: headingDegrees, eye, startX, startZ } = hills.options;
     const { sunElevation, sunAzimuth } = hills.lawn;
@@ -150,8 +157,9 @@ try {
     };
 
     const gpu = { render: new Map(), compute: new Map() };
-    const invalid = { render: new Set(), compute: new Set(), sky: new Set() };
+    const invalid = { render: new Set(), compute: new Set(), sky: new Set(), shadow: new Set() };
     const skyFrames = new Map();
+    const shadowFrames = new Map();
     const pending = { render: null, compute: null };
     const problems = [];
 
@@ -173,19 +181,22 @@ try {
         for (const [frame, ms] of groupEntries(entries)) {
           gpu[type].set(frame, (gpu[type].get(frame) ?? 0) + ms);
         }
-        if (type === 'compute' && skyAvailable) {
-          const skyEntries = entries.filter(([uid]) => {
+        // One compute node's share of each frame, by its runtime id.
+        const attribute = (ids, frames, invalidFrames) => {
+          const selected = entries.filter(([uid]) => {
             const match = /^(?:c|r):\d+:(\d+):f\d+$/.exec(uid);
-            return match !== null && skyIdSet.has(Number(match[1]));
+            return match !== null && ids.has(Number(match[1]));
           });
-          for (const [uid, ms] of skyEntries) {
+          for (const [uid, ms] of selected) {
             const match = /:f(\d+)$/.exec(uid);
-            if (match && (!Number.isFinite(ms) || ms < 0)) invalid.sky.add(Number(match[1]));
+            if (match && (!Number.isFinite(ms) || ms < 0)) invalidFrames.add(Number(match[1]));
           }
-          for (const [frame, ms] of groupEntries(skyEntries)) {
-            skyFrames.set(frame, (skyFrames.get(frame) ?? 0) + ms);
+          for (const [frame, ms] of groupEntries(selected)) {
+            frames.set(frame, (frames.get(frame) ?? 0) + ms);
           }
-        }
+        };
+        if (type === 'compute' && skyAvailable) attribute(skyIdSet, skyFrames, invalid.sky);
+        if (type === 'compute' && shadowAvailable) attribute(shadowIdSet, shadowFrames, invalid.shadow);
       })().catch((error) => problems.push(`${type}: ${error.message}`))
         .finally(() => { pending[type] = null; });
       return pending[type];
@@ -243,6 +254,8 @@ try {
             ? 0 : gpu.compute.get(row.frameId) ?? null;
         row.gpuSkyComputeMs = !gpuSupported || !skyAvailable || invalid.sky.has(row.frameId)
           ? null : skyFrames.get(row.frameId) ?? (row.gpuComputeMs !== null ? 0 : null);
+        row.gpuShadowComputeMs = !gpuSupported || !shadowAvailable || invalid.shadow.has(row.frameId)
+          ? null : shadowFrames.get(row.frameId) ?? (row.gpuComputeMs !== null ? 0 : null);
         row.gpuTotalMs = row.gpuRenderMs !== null && row.gpuComputeMs !== null
           ? row.gpuRenderMs + row.gpuComputeMs : null;
       }
@@ -262,6 +275,10 @@ try {
         available: skyAvailable,
         cloudsEnabled: clouds !== null,
         computeNodeIds: skyAvailable ? [...skyIdSet] : [],
+      },
+      shadowComputeAttribution: {
+        available: shadowAvailable,
+        computeNodeIds: shadowAvailable ? [...shadowIdSet] : [],
       },
       cloudStats: cloudStats === null ? null : structuredClone(cloudStats),
       options: { ...hills.options, ...hills.lawn },
@@ -294,6 +311,9 @@ for (const [name, rows] of Object.entries(result.results)) {
     over20Ms: rows.filter((row) => row.intervalMs > 20).length / Math.max(1, rows.length),
     gpuTotalMs: summarize(rows.map((row) => row.gpuTotalMs)),
     gpuSkyComputeMs: summarize(rows.map((row) => row.gpuSkyComputeMs)),
+    // Only frames that marched part of a shadow map; most frames march none.
+    shadowFrames: rows.filter((row) => row.gpuShadowComputeMs > 0).length,
+    gpuShadowComputeMs: summarize(rows.map((row) => row.gpuShadowComputeMs).filter((ms) => ms > 0)),
   };
 }
 
@@ -310,6 +330,7 @@ const report = {
   sourceUnchanged: before === after,
   gpuSupported: result.gpuSupported,
   skyComputeAttribution: result.skyComputeAttribution,
+  shadowComputeAttribution: result.shadowComputeAttribution,
   cloudStats: result.cloudStats,
   options: result.options,
   canvas: result.canvas,
@@ -322,7 +343,8 @@ const path = await writeJson(directory, 'benchmark.json', report);
 console.log(`${mode} run ${label}  ${result.canvas.width}x${result.canvas.height}  ${url.href}`);
 console.log(`adapter ${adapter.classification}  ${JSON.stringify(adapter.info)}`);
 console.log(`\n${'case'.padEnd(9)} ${'frames'.padStart(6)} ${'fps'.padStart(7)} ${'p95(ms)'.padStart(8)} ` +
-  `${'>20ms'.padStart(6)} ${'gpuMed'.padStart(7)} ${'gpuP95'.padStart(7)} ${'skyMed'.padStart(7)}`);
+  `${'>20ms'.padStart(6)} ${'gpuMed'.padStart(7)} ${'gpuP95'.padStart(7)} ${'skyMed'.padStart(7)} ` +
+  `${'shadow'.padStart(12)}`);
 for (const name of cases) {
   const row = summary[name];
   const value = (number, digits = 2) => (number === null ? '—' : number.toFixed(digits));
@@ -330,7 +352,8 @@ for (const name of cases) {
     `${name.padEnd(9)} ${String(row.frames).padStart(6)} ${value(row.meanFps, 1).padStart(7)} ` +
     `${value(row.intervalMs.p95).padStart(8)} ${(100 * row.over20Ms).toFixed(1).padStart(5)}% ` +
     `${value(row.gpuTotalMs.median).padStart(7)} ${value(row.gpuTotalMs.p95).padStart(7)} ` +
-    `${value(row.gpuSkyComputeMs.median).padStart(7)}`,
+    `${value(row.gpuSkyComputeMs.median).padStart(7)} ` +
+    `${`${row.shadowFrames}@${value(row.gpuShadowComputeMs.median)}`.padStart(12)}`,
   );
 }
 if (warnings.length) {

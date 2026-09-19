@@ -43,6 +43,7 @@ test('sky has independent defaults and rejects unsupported inputs before allocat
     assert.deepEqual(sky.sunDirection, sunDirectionFrom(45, 0));
     assert.equal(sky.ready, false);
     assert.equal(sky.clouds, null);
+    assert.equal(sky.cloudShadowNode, null, 'no clouds, nothing to cast a shadow');
     assert.ok(Object.isFrozen(sky));
     assert.ok(Object.isFrozen(sky.sunDirection));
     assert.equal(sky.skyExposure, undefined);
@@ -117,6 +118,8 @@ test('cloud frame work is guarded through asynchronous baking, failure and recov
     assert.equal(sky.clouds.update, undefined);
     assert.equal(sky.clouds.dispose, undefined);
     assert.ok(Object.isFrozen(sky.clouds.stats));
+    assert.ok(Object.isFrozen(sky.clouds.stats.shadow));
+    assert.equal(sky.cloudShadowNode().isNode, true, 'usable before the first bake: it reads 1 until then');
     assert.equal(sky.update(0), false);
     await sky.bake();
     assert.equal(sky.ready, true);
@@ -166,6 +169,7 @@ test('disposal during cloud initialization stops all later cloud dispatches', as
   await assert.rejects(baking, /disposed/);
   assert.equal(cloudDispatches, 1);
   assert.equal(cloudDisposals, 1);
+  assert.throws(() => sky.cloudShadowNode(), /disposed/);
   assert.equal(sky.update(2), false);
   await assert.rejects(sky.setSun(20, 10), /disposed/);
 });

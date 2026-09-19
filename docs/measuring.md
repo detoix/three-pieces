@@ -17,12 +17,13 @@ process when done.
 | Tool | What it answers | Re-run when |
 | --- | --- | --- |
 | `shoot.mjs` | Fixed-view 1080p frames: six elevations/azimuths around the sun and away from it | Any visual change to sky, clouds, terrain or grass; before/after judgement for each change |
-| `benchmark.mjs` | GPU pass time and frame cadence along fixed camera paths, with or without timestamp instrumentation | Any change to shaders, quality, density, or render scheduling |
+| `benchmark.mjs` | GPU pass time and frame cadence along fixed camera paths, with or without timestamp instrumentation; the sky's cloud compute and the cloud shadow march are attributed separately | Any change to shaders, quality, density, or render scheduling |
 | `record-motion.mjs` | 10-second WebM captures of fixed motion paths (static, turn/walk stress, seam, zenith) | Any change to the angular cache, wind handling, culling or LOD that should be reviewed in motion |
 | `measure-sky.mjs` | Rendered sky radiance and the fully fogged far band's luminance, with the instrument eye raised so the band is resolvable | `SKY_EXPOSURE`, the sun, the medium or the tone mapper move |
-| `measure-lawn-hue.mjs` | Rendered hue, saturation and luminance over six depth bands | The underlay, occlusion, lights, palette or blade coverage move (these interact, so re-sweep together) |
-| `measure-lawn-coverage.mjs` | Fraction of bare ground by distance, with the underlay painted emissive | Blade height, blade width, tillering or ring density move |
+| `measure-lawn-hue.mjs` | Rendered hue, saturation and luminance over six depth bands, with cloud shadows off | The underlay, occlusion, lights, palette or blade coverage move (these interact, so re-sweep together) |
+| `measure-lawn-coverage.mjs` | Fraction of bare ground by distance, with the underlay painted emissive and cloud shadows off | Blade height, blade width, tillering or ring density move |
 | `measure-clouds.mjs` | Cloud cover, luma spread and the colour of the shaded parts over the six fixed views, wind stopped | Anything in the cloud density, march or lighting; the look was tuned against these numbers |
+| `measure-cloud-shadows.mjs` | How much of the lawn in view is shaded and how dark, over the six fixed views, against the same views with `?cloudshadows=off`, wind stopped | The shadow map, the cloud density, the sun, or the balance of the lights |
 
 Every tool checks the renderer's `adapterInfo` and refuses to report a number
 for a software device. Every one prints its findings and writes them as JSON
@@ -88,8 +89,14 @@ node scripts/measure-sky.mjs --label sky-071
 node scripts/measure-lawn-hue.mjs --label hue-92
 node scripts/measure-lawn-coverage.mjs --label blades-055-0105
 
-# The cloud look
+# The cloud look, and the shadows it casts
 node scripts/measure-clouds.mjs --label clouds-before
+node scripts/measure-cloud-shadows.mjs --label shadows-before
+
+# The shadow march only runs when a map is re-marched; a fast wind makes that
+# every five seconds, so a sample catches it
+node scripts/benchmark.mjs --label shadow-march --mode timed --cases idle \
+  --sample 20000 --url 'http://127.0.0.1:5173/?cloudwind=100'
 ```
 
 Each writes under `apps/hills/measurements/<label>/` unless `--out` says
@@ -174,3 +181,30 @@ How to read it:
   (GPU median 17.3-18.3 ms) on 2026-09-18 and about 59 FPS (16.0 ms) on
   2026-09-19. Clock and thermal state move a frame more than most changes
   do, which is why the rules above ask for alternating trials.
+
+## Cloud shadows
+
+Measured 2026-09-19, later the same day, on the same GPU at 1920x1080 with
+`benchmark.mjs --mode timed`, 3 s warmup and 10 s samples. The baseline
+frame was faster than in the table above -- about 10.8 ms walking, 60 FPS
+held -- so these numbers compare only with each other.
+
+| Variant, three alternating trials each | Walk | Turn |
+| --- | ---: | ---: |
+| `?cloudshadows=off` | 10.77-10.87 ms | 10.95-11.14 ms |
+| Cloud shadows (the default) | 10.91-10.95 ms | 10.95-11.18 ms |
+
+About 0.1 ms walking and nothing measurable turning: the lookup is one texture
+read where the lawn is drawn. A first version worked the projection out per
+pixel and cost 0.2-0.3 ms. The march runs only when a map is re-marched --
+every 40 seconds or so at the demo's wind, over 64 frames -- at 0.053 ms in
+each of those frames (p95 0.058, measured with the wind at 100 m/s), about
+3.4 ms for a whole map.
+
+`measure-cloud-shadows.mjs` at the start point, wind stopped: 96-100% of the
+lawn in the five views that show it is shaded, at 0.22-0.28 of its sunlit
+luminance, with at most 1% in a shadow's edge. The start point is under a large
+cloud region at the default seed, so every fixed view looks at shade. This is
+where the demo's clouds are, not a fault; `packages/three/docs/sky-internals.md`
+has the check that the shadow and the sky agree. The lawn hue and coverage
+sweeps turn the shadows off, so their numbers above are unchanged by them.

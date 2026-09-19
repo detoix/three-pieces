@@ -156,6 +156,12 @@ export function readSceneOptions(search = '', devicePixelRatio = 1) {
     cloudQuality: ['low', 'balanced', 'high'].includes(params.get('cloudquality')) ? params.get('cloudquality') : 'balanced',
     cloudCoverage: number('cloudcoverage', 0.48, 0, 1),
     cloudWindSpeed: number('cloudwind', 12, 0, 100),
+    // The clouds' shadows on the lawn and the hills: the sun is multiplied by
+    // what gets through the clouds between it and each point it lights.
+    // `?cloudshadows=off` is the A/B, and it is also how the lawn's colour is
+    // measured: the palette was calibrated in sunlight, and a cloud's shadow
+    // drifting through a sample band is weather, not a change of colour.
+    cloudShadows: params.get('cloudshadows') !== 'off',
     // Whether the two lights take their colour from the atmosphere. This is
     // the A/B that isolates the lighting from the sky: `?skylights=off` keeps
     // the authored `#fff0cd` sun and neutral hemisphere under a physical sky,

@@ -7,7 +7,9 @@
  * hardware WebGPU, paints the solid underlay control emissive blue so every
  * pixel of ground no blade covers is unmistakable, and counts them by screen
  * row -- which, for a known camera over flat terrain, is a known ground
- * distance.
+ * distance. Cloud shadows are off (`cloudshadows=off`), so a blade in shadow,
+ * lit by the blue sky alone, cannot tip the blue-over-green test that marks
+ * ground.
  *
  *   node scripts/measure-lawn-coverage.mjs --label shipped
  *   node scripts/measure-lawn-coverage.mjs --label width-1 --query 'bladewidth=1'
@@ -31,7 +33,7 @@ const label = sanitizeLabel(args.label ?? defaultLabel('lawn-coverage'));
 const pitch = Number(args.pitch ?? 0);
 const width = Number(args.width ?? 1280);
 const height = Number(args.height ?? 720);
-const url = appUrl(loopbackUrl(args.url), { ui: 0, hills: 0, underlay: 'solid' });
+const url = appUrl(loopbackUrl(args.url), { ui: 0, hills: 0, underlay: 'solid', cloudshadows: 'off' });
 const directory = join(await outputDir(args.out), label);
 await mkdir(directory, { recursive: true });
 

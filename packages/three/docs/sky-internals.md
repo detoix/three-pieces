@@ -9,10 +9,11 @@ from. How a number about any of it is measured is in
 ## Scope
 
 A ground-level daylight sky with scattered cumulus, for a camera that walks a
-small site. The sun and the weather are fixed at construction; the sun can be
-rebaked, asynchronously. The camera stays at eye height. Cloud fly-through,
-scene/cloud intersections, dynamic weather, cloud ground shadows and night
-content are outside the implemented scope. Everything below serves that scope.
+small site, and the clouds' shadows on the ground it stands on. The sun and
+the weather are fixed at construction; the sun can be rebaked, asynchronously.
+The camera stays at eye height. Cloud fly-through, scene/cloud intersections,
+dynamic weather and night content are outside the implemented scope.
+Everything below serves that scope.
 
 ## The atmosphere
 
@@ -240,6 +241,82 @@ authored value exactly at the shipped sun, and both then dim and redden with
 the sky as the sun moves. Making the balance physical too is a separate
 change. Cloud attenuation of the probe is not implemented.
 
+## Cloud shadows
+
+`cloud-shadow.js` holds the geometry and the schedule as plain arithmetic with
+its own tests, and the GPU plumbing that follows them; the march itself is in
+`clouds.js`, because it reads the same density field the sky is drawn from.
+
+**The map.** 256x256 RGBA16F texels (R used) over 5.12 km of ground, 20 m a
+texel, two of them: one shown while the other is marched, 1 MiB together. Each
+texel marches from its point of the ground, at y = 0, toward the sun through
+the layer, in 50 m steps -- 35 at the demo's 49-degree sun, never fewer than 16
+or more than 64 -- and stops once the optical depth passes 8. The ground point
+is the observer of its own march: the ray starts there and curvature is
+measured from there, so a texel's value depends only on where it lies in the
+cloud field, and two maps centred in different places agree wherever they
+overlap. A world position is projected along the sun onto y = 0 before it is
+looked up, so a blade tip, a hillside and anything a host stands on the ground
+all read the clouds between them and the sun.
+
+**Why it is cheap.** The map is of the cloud field, not of the ground. The
+density model has no motion but drift, so a marched map stays exact, read a
+little further along each frame. It is re-marched only when the observer's
+field point -- where they stand plus the drift -- is 0.5 km from the map's
+centre, 64 slices over 64 frames into the map not shown, which is then shown
+whole. At 0.8 km, after a teleport or when frames are too slow for the slices
+to keep up, the whole map is marched in one frame. Between them those two rules
+keep every point within 1.56 km of the observer on a complete map after every
+update; a test walks an observer at the sky's fastest wind and the demo's
+fastest run, with teleports, and checks it. New maps are centred on the texel
+grid of the old ones, so a swap changes nothing on screen: frames drawn from
+consecutive maps, from a fixed camera with the wind stopped and shadow edges in
+view, differ by at most one grey level. The lookup where the shadows are drawn
+is one texture read and two multiply-adds: the sun's slope is folded into one
+uniform at each bake and the drift and centre into another on the CPU every
+frame, in doubles, where hours of drift cost no precision; the map's outer
+0.2 km fade to no shadow is marched into the texels, so beyond the map the
+edge clamp reads none.
+
+**The edge.** A cloud's shadow is the cloud that casts it, so the march reads
+the body at its crispest, as the nearest clouds overhead are drawn. Maps read
+back from the GPU with the wind stopped, at the demo's start:
+
+| Body edge read by the shadow march | Ground shaded (T < 0.5) | Texels per edge crossing |
+| --- | ---: | ---: |
+| Filtered to the 50 m step (the sky's rule for a view ray) | 40% | 6.8 (137 m) |
+| Filtered to the 20 m texel | 44% | 5.4 (109 m) |
+| Crispest, `EDGE` | 49% | 3.2 (63 m) |
+
+The step-filtered body ringed every shadow with a 140 m grey fringe and let
+thin cloud through that the sky draws opaque. The crisp one is kept: 20 m
+texels, filtered, blur its edge by about the sun's own width -- 0.53 degrees is
+17 m from a base 1.8 km up the ray and 33 m from a top 3.5 km up -- and no
+banding from the 50 m step showed in the map.
+
+**Measured**, 2026-09-19, on an integrated laptop GPU at 1920x1080, timed runs
+with 3 s warmup and 10 s samples:
+
+- The lookup, three alternating trials each: walking 10.77-10.87 ms of GPU
+  time a frame without shadows and 10.91-10.95 with them; turning 10.95-11.14
+  without and 10.95-11.18 with. About 0.1 ms, or nothing measurable. The
+  first version worked the projection, drift and edge fade out per pixel and
+  cost 0.2-0.3 ms, which is why they were folded away.
+- The march, with the wind at 100 m/s so maps are re-marched every five
+  seconds: 0.053 ms median in a frame that marches a slice (p95 0.058), so a
+  whole map is about 3.4 ms -- at each bake, and in the one frame after a
+  teleport.
+- The look, from `measure-cloud-shadows.mjs` at the start point with the wind
+  stopped: shaded lawn at 0.22-0.28 of its sunlit luminance. The lights set
+  that, not the clouds. Under the authored balance the sun delivers 1.34 times
+  the sky's irradiance on flat ground, and with the light through the blades
+  gone too, a shadow keeps about a quarter. Under the probe's physical balance,
+  10.2 times, a clear sky's shadow would keep under a tenth; `lights.js` says
+  why the balance is authored.
+- The sky and the shadows agree: at the start point the map reads 5% of the
+  sun getting through, and looking at the sun from there, its disk is behind a
+  cloud's edge.
+
 ## Known limits
 
 - **Edge crispness is capped by the cache, most visibly near the zenith.**
@@ -259,9 +336,15 @@ change. Cloud attenuation of the probe is not implemented.
   previous page's luma and cover, not derived. The sun march reaches about
   0.6 km and past its first two samples (about 30 m) it reads a smoothed
   density, so there are no long-range shadows cast by one cloud on another.
-- **The ground does not react to clouds.** There are no cloud shadows and no
-  cloud attenuation of the lighting probe. The planned shape of the fix is
-  recorded in [`docs/roadmap.md`](../../../docs/roadmap.md).
+- **Cloud shadows shade the sun, not the sky.** Under a cloud, only the direct
+  beam is taken away; the host's sky light is the clear-sky probe's, and
+  there is still no cloud attenuation of the probe. Positions above the cloud
+  base, and more than 1.56 km from the observer, are not shaded.
+- **Where the weather puts the observer decides the scene.** The weather map
+  lays out overcast regions several kilometres across. At the demo's seed the
+  start point is on the western edge of one, in the sun's direction, so its
+  opening view is shaded, and the wind carries more of that region over it for
+  the next few minutes.
 - **Fast wind is not robust.** At 60 m/s cloud edges visibly distort and
   double; the default is 12 m/s.
 - **Coverage and wind cannot change while running.** Options other than the sun

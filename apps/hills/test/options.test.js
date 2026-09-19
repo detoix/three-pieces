@@ -71,6 +71,12 @@ test('multisampling is on unless explicitly switched off', () => {
   assert.equal(readSceneOptions('?msaa=0').msaa, true);
 });
 
+test('cloud shadows are on unless explicitly switched off', () => {
+  assert.equal(readSceneOptions('').cloudShadows, true);
+  assert.equal(readSceneOptions('?cloudshadows=off').cloudShadows, false);
+  assert.equal(readSceneOptions('?cloudshadows=0').cloudShadows, true);
+});
+
 test('the posture dials cannot ask for a heading with no direction', () => {
   // `?clumppull=` and `?tillerfan=` are the A/B for how correlated
   // neighbouring blades are. The pull has the same forbidden band the preset

@@ -119,6 +119,7 @@ export async function startHills({ adapter }) {
     scene.add(skyLight, sun, sun.target);
 
     let lighting = null;
+    let cloudShadows = false;
     if (lawn.sky === 'atmosphere') {
       if (loadingText) loadingText.textContent = 'Baking the atmosphere…';
       sky = createSky({
@@ -141,6 +142,19 @@ export async function startHills({ adapter }) {
       }
       scene.backgroundNode = sky.backgroundNode;
       scene.fogNode = sky.fogNodeFor({ near: options.hazeNear, far: options.hazeFar });
+      // The sky's map of the sunlight that gets through the clouds, installed
+      // as the sun's shadow. Three r185 takes a light's `shadow.shadowNode` in
+      // place of the shadow map it would otherwise render, so no map is drawn
+      // and the sun is simply multiplied by it wherever it lights a surface
+      // that receives shadows: the ground, the blades, and the light through
+      // the blades, which `GrassLightingModel` reads off the same shadowed
+      // light colour.
+      if (sky.cloudShadowNode && lawn.cloudShadows) {
+        renderer.shadowMap.enabled = true;
+        sun.castShadow = true;
+        sun.shadow.shadowNode = sky.cloudShadowNode();
+        cloudShadows = true;
+      }
     } else {
       scene.background = new THREE.Color('#b8c9b5');
       scene.fog = new THREE.Fog('#b8c9b5', options.hazeNear, options.hazeFar);
@@ -151,6 +165,7 @@ export async function startHills({ adapter }) {
       radius: GROUND_RADIUS,
       heightBounds,
     });
+    ground.mesh.receiveShadow = cloudShadows;
     scene.add(ground.mesh);
 
     if (loadingText) loadingText.textContent = 'Allocating persistent grass grids…';
@@ -159,9 +174,10 @@ export async function startHills({ adapter }) {
       heightMap: { heightAt, normalStep: 0.25, packingMinimum, packingRange },
       groundBounds: { minimum: heightBounds.minimum, maximum: heightBounds.maximum },
       surface,
-      // Nothing here casts a shadow: the hills are too gentle to shadow
-      // themselves at the default sun, so there is no shadow map to receive.
-      shadows: false,
+      // The blades receive the clouds' shadow. Nothing here casts one: the
+      // hills are too gentle to shadow themselves at the default sun, and the
+      // blades cast none by design.
+      shadows: cloudShadows,
       coarseCulling: lawn.coarseCulling,
       cullHysteresis: lawn.cullHysteresis,
       subgroupCulling: lawn.subgroupCulling,

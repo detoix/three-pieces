@@ -65,7 +65,8 @@ The demo exists so the sky and lawn can be recorded and posted; the look is
 the point, and dropped frames read as stutter. A 1080p review of the hills
 found the opening framing good and four problems when looking up or at large
 clouds: soft, out-of-focus clouds; dirty blue-grey insides on large ones; a
-repeating band at the horizon; and a ground that does not react to clouds.
+repeating band at the horizon; and a ground that does not react to clouds. All
+four are now addressed, below.
 
 **Done, 2026-09-19** -- the first three, in one change, because they turned
 out to be one problem:
@@ -91,13 +92,25 @@ and brightness to within a point in five of the six fixed views
 (`measure-clouds.mjs`). `packages/three/docs/sky-internals.md` has the
 details, the numbers and what is still limited.
 
-**Next: cloud shadows on the ground**, keeping the pieces independent:
+**Done, 2026-09-19: cloud shadows on the ground.** The sky marches a top-down
+map of the sun's beam through the clouds and exposes it as a TSL node,
+`cloudShadowNode()`; the demo installs that as the sun's shadow
+(`?cloudshadows=off` is the A/B). The plan was a sun-visibility hook in
+`GrassLightingModel.direct()`. It turned out not to be needed: Three.js r185
+multiplies a light's `shadow.shadowNode` into the light's colour before any
+lighting model reads it, so the blades, the ground surface, the light through
+the blades and the solid-underlay control are all shaded with no change to
+the grass package, and the pieces stay independent. The map is of the
+drifting cloud field, so it stays exact and is re-marched only after 0.5 km of
+walk or wind. A steady frame marches nothing, and the lookup costs about
+0.1 ms of a ground frame. `packages/three/docs/sky-internals.md` has the
+design and the numbers.
 
-- the sky exposes a small top-down sun-transmittance map as a TSL node;
-- `GrassLightingModel.direct()` in `src/grass/blade-lighting.js` takes an
-  optional sun-visibility node. Blades and the ground surface both use it, so
-  that one hook covers both;
-- the demo connects the two.
+One consequence for the recordings: at the demo's seed the start point stands
+on the western edge of an overcast region, in the sun's direction, so the
+opening view is shaded, and the wind carries more of that region over it for
+the next few minutes. Where a recording starts -- the start point, the
+heading, the moment, or the seed -- now decides whether it opens in sun.
 
 Experiments considered, not adopted -- each has to earn its cost in a matched
 comparison before it lands:
@@ -121,7 +134,8 @@ comparison before it lands:
 
 Known limits that this plan does not remove:
 
-- no cloud attenuation of the lighting probe;
+- no cloud attenuation of the lighting probe, and under a cloud the sky light
+  stays the clear sky's;
 - 60 m/s wind doubles cloud edges, so the default stays 12 m/s;
 - coverage and wind cannot change while running;
 - sun changes are not atomic visual transitions.
@@ -134,7 +148,8 @@ Known limits that this plan does not remove:
   a still.
 - **Blades cast no shadows.** A few hundred thousand shadow-casting slivers
   costs more than it returns at 4-8 cm, so root and ground occlusion stand in
-  for it. Cloud shadows (part 2) are the larger missing shadow.
+  for it. They do receive one: with `shadows: true` the clouds' shadow (part
+  2) reaches them through the sun's light.
 - **No wind.** Short mown blades have no animation node and no time-dependent
   deformation. Anything that adds wind also needs to answer what it does to
   the culling spheres and the far-field proxy.

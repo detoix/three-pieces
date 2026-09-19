@@ -4,7 +4,7 @@ Three.js WebGPU pieces, usable on their own or together:
 
 | Import | What it is |
 | --- | --- |
-| [`@detoix/three-pieces/sky`](docs/sky.md) | A physical atmosphere with volumetric clouds, a background and fog node, and a lighting probe |
+| [`@detoix/three-pieces/sky`](docs/sky.md) | A physical atmosphere with volumetric clouds, a background and fog node, a lighting probe, and the clouds' shadows as a node for the sun |
 | [`@detoix/three-pieces/grass`](docs/grass.md) | A GPU-driven lawn: persistent storage, compute placement and culling, indirect LOD draws, a matching ground surface, and the lawn areas it reads from a loaded model |
 | [`@detoix/three-pieces/terrain`](docs/terrain.md) | Unbounded procedural hills and a camera-following ground grid |
 

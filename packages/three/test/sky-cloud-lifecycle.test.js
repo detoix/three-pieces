@@ -6,8 +6,15 @@ import { createVolumetricClouds } from '../src/sky/clouds.js';
 function createRecordedClouds(options = {}) {
   const initializations = [];
   const updates = [];
+  // The shadow map's own passes, kept apart: these tests are about the sky's
+  // cache, and `sky-cloud-shadow.test.js` is about the shadows.
+  const shadowMarches = [];
   const disposedPasses = new Map();
   function record(target, pass) {
+    if (clouds.stats.shadow?.computeNodeIds.includes(pass.id)) {
+      shadowMarches.push({ id: pass.id, count: pass.count });
+      return;
+    }
     if (!disposedPasses.has(pass.id)) {
       disposedPasses.set(pass.id, 0);
       pass.addEventListener('dispose', () => {
@@ -27,7 +34,7 @@ function createRecordedClouds(options = {}) {
     quality: 'low',
     ...options,
   });
-  return { clouds, initializations, updates, disposedPasses };
+  return { clouds, initializations, updates, shadowMarches, disposedPasses };
 }
 
 for (const [condition, options] of [
@@ -35,7 +42,9 @@ for (const [condition, options] of [
   ['zero coverage', { coverage: 0 }],
 ]) {
   test(`${condition} initializes both cloud snapshots but skips all incremental compute`, async () => {
-    const { clouds, initializations, updates } = createRecordedClouds(options);
+    const { clouds, initializations, updates, shadowMarches } = createRecordedClouds(options);
+    // One whole shadow map a bake, when there are clouds to cast one.
+    const shadowsPerBake = options.coverage === 0 ? 0 : 1;
     try {
       clouds.update(0);
       assert.equal(initializations.length + updates.length, 0,
@@ -50,6 +59,7 @@ for (const [condition, options] of [
         clouds.update(frame / 60);
       }
       assert.equal(updates.length, 0);
+      assert.equal(shadowMarches.length, shadowsPerBake, 'a still sky over a still observer');
       assert.equal(clouds.stats.updatedTexels, 0);
       assert.equal(clouds.stats.generation, 0);
 
@@ -58,6 +68,7 @@ for (const [condition, options] of [
       clouds.update(0);
       assert.equal(initializations.length, 4);
       assert.equal(updates.length, 0);
+      assert.equal(shadowMarches.length, 2 * shadowsPerBake);
     } finally { clouds.dispose(); }
   });
 }

@@ -54,13 +54,32 @@ export interface CloudStats {
   readonly windSpeed: number;
   /** Runtime node IDs for initialization and incremental update timestamp attribution. */
   readonly computeNodeIds: readonly [number, number];
-  /** Estimated texture bytes, excluding driver allocations and pipelines. */
+  /** Estimated texture bytes, including the shadow maps, excluding driver allocations and pipelines. */
   readonly bytes: number;
+  /** The cloud shadow map; null at zero coverage, where there is no shadow to march. */
+  readonly shadow: CloudShadowStats | null;
   readonly generation: number;
   readonly updatedTexels: number;
   /** Duration of one completed cache update cycle, not a GPU timing. */
   readonly cacheLatencySeconds: number;
   readonly representation: string;
+}
+
+export interface CloudShadowStats {
+  /** Texels along each side of the map, currently 256. */
+  readonly resolution: number;
+  /** Kilometres of ground along each side, currently 5.12 (20 m texels). */
+  readonly extentKm: number;
+  readonly texelKm: number;
+  /** Everything within this many km of the observer is shadowed from a complete map, currently 1.56. */
+  readonly reachKm: number;
+  readonly bytes: number;
+  /** Runtime node IDs of the whole-map and one-slice passes, for timestamp attribution. */
+  readonly computeNodeIds: readonly [number, number];
+  /** Maps shown so far, counting the one each bake marches. */
+  readonly generation: number;
+  /** The cloud-field point (x, z) in km the shown map is centred on. */
+  readonly centreKm: readonly [number, number];
 }
 
 export interface Sky {
@@ -70,6 +89,14 @@ export interface Sky {
   readonly skyRadianceNode: (direction: Node) => Node;
   /** Frozen diagnostics only; lifecycle remains owned by this sky. */
   readonly clouds: { readonly stats: CloudStats } | null;
+  /**
+   * The fraction of the sun's direct beam the clouds let through to a world position in
+   * metres (default: the fragment's `positionWorld`), as a TSL float in [0, 1]. Null with
+   * clouds off. Install it as a directional light's shadow node to darken everything that
+   * light lights; see docs/sky.md. Valid for positions below the cloud base and within
+   * `clouds.stats.shadow.reachKm` of the observer passed to update(); past the map it is 1.
+   */
+  readonly cloudShadowNode: ((worldPosition?: Node) => Node) | null;
   /** Frozen world direction [x, y, z]; +Y is up. */
   readonly sunDirection: readonly [number, number, number];
   /** True after a successful bake and false during work, failure or disposal. */
@@ -101,7 +128,10 @@ export interface Sky {
    * however far it walks; omitted, the observer is the world origin.
    */
   update(seconds: number, observer?: { readonly x: number; readonly z: number }): boolean;
-  /** Idempotent. Detach scene nodes first; pending async work rejects after disposal. */
+  /**
+   * Idempotent. Detach scene nodes first, including a cloud shadow node installed on a
+   * light; pending async work rejects after disposal.
+   */
   dispose(): void;
 }
 

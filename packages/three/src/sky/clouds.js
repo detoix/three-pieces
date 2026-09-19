@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { createCloudNoiseData, createCloudWeatherData } from './cloud-noise.js';
 import { CLOUD_LIGHTING } from './cloud-lighting.js';
+import { CLOUD_SHADOW, WIND_Z, cloudDrift, createCloudShadowMap } from './cloud-shadow.js';
 
 const { Fn, If, Loop, Break, float, uint, vec2, vec3, vec4, uvec2,
   uniform, instanceIndex, texture, texture3D, storageTexture, mix, atan,
@@ -29,6 +30,8 @@ const EDGE_PER_KM = 30;
 // ...but never so wide that a distant cloud never reaches its body: past this
 // the edge is the whole cloud, it thins out, and every ray through it runs on.
 const EDGE_MAX = 1;
+// The footprint at which the edge is at its crispest, `EDGE`: the shadow map's.
+const SHADOW_FOOTPRINT = EDGE / EDGE_PER_KM;
 const DENSITY_BASE = 3;
 const DENSITY_SLOPE = 2;
 const EXTINCTION = 14;
@@ -162,14 +165,17 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
   const sunColor = uniform(new THREE.Vector3(0.923, 0.830, 0.700));
   const skyColor = uniform(new THREE.Vector3(0.0314, 0.0646, 0.127));
 
-  const densityAt = Fn(([p, detail, footprint]) => {
+  // `p` is relative to whoever is looking -- curvature is measured from them --
+  // and `offset` is where they stand in the drifting field, so `p + offset`
+  // is the field point. The sky looks from the observer at its snapshot's
+  // time; the shadow map looks up from each point of the ground.
+  const densityAt = Fn(([p, detail, footprint, offset]) => {
     const altitude = p.y.add(p.xz.dot(p.xz).div(2 * EARTH));
     const h = altitude.sub(BASE).div(TOP - BASE).toVar();
     const density = float(0).toVar();
     If(h.greaterThan(0).and(h.lessThan(1)).and(amount.greaterThan(0)), () => {
-      const drift = vec3(snapshotTime.mul(windSpeed / 1000), 0, snapshotTime.mul(windSpeed / 1000 * 0.32));
       // Curvature above is the observer's; the clouds themselves are world-fixed.
-      const q = p.add(drift).add(vec3(snapshotOrigin.x, 0, snapshotOrigin.y)).toVar();
+      const q = p.add(offset).toVar();
       const w = weatherNode.sample(q.xz.div(24).add(vec2(0.17, 0.43))).level(0).rgb.toVar();
       // Coverage changes the amount of occupied sky, not cloud transparency.
       const c = w.x.add(amount).sub(0.48).clamp(0, 1).toVar();
@@ -232,6 +238,9 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
     If(end.greaterThan(start).and(amount.greaterThan(0)), () => {
       // Invariant along the ray: one atmospheric lookup, not one per step.
       const atmosphereColor = skyRadianceNode(direction).toVar();
+      // Where the observer stood in the field when this snapshot was marched.
+      const drift = snapshotTime.mul(windSpeed / 1000);
+      const fieldOffset = vec3(drift.add(snapshotOrigin.x), 0, drift.mul(WIND_Z).add(snapshotOrigin.y)).toVar();
       // Coarse steps target 50 m, at least the preset's minimum count and at
       // most 256 across the layer; fine steps are a quarter of that.
       const coarseCount = end.sub(start).div(0.05).ceil().max(steps).min(256);
@@ -266,7 +275,7 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
         const p = direction.mul(distance).toVar();
         const lateral = distance.mul(angularTexel);
         const footprint = lateral.max(stepLength).toVar();
-        const density = densityAt(p, float(1), footprint).toVar();
+        const density = densityAt(p, float(1), footprint, fieldOffset).toVar();
         const refine = coarse.greaterThan(lateral.mul(REFINE_RATIO));
         If(fineMode.equal(0).and(refine).and(density.greaterThan(0.001))
           .and(transmittance.greaterThan(DEEP_TRANSMITTANCE)), () => {
@@ -297,7 +306,7 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
                 const segment = lightDistance.sub(previousDistance);
                 const middle = lightDistance.add(previousDistance).mul(0.5);
                 opticalDepth.addAssign(densityAt(p.add(sunDirection.mul(middle)),
-                  i.lessThan(LIGHT_DETAILED).select(float(1), float(0)), segment)
+                  i.lessThan(LIGHT_DETAILED).select(float(1), float(0)), segment, fieldOffset)
                   .mul(segment).mul(EXTINCTION));
                 previousDistance.assign(lightDistance);
                 lightDistance.mulAssign(LIGHT_GROWTH);
@@ -342,6 +351,38 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
     return { color: vec4(radiance, transmittance), depth: vec4(depth, 0, 0, 1) };
   };
 
+  // The sun's beam down to a point of ground, for the shadow map. The ground
+  // point is the observer here: the ray starts on it and curvature is measured
+  // from it, so a texel's value depends only on where it lies in the field and
+  // never on where the map is centred -- one map swapped for the next shows no
+  // seam. Its layer is measured from y = 0 and the sky's from the eye, which
+  // for a camera at eye height over gentle ground is metres of a 1.35 km base.
+  //
+  // The body is read at its crispest, as the nearest clouds overhead are
+  // drawn: a shadow is the cloud that casts it, and read at the 50 m step its
+  // edge widened to the whole cloud -- every shadow ringed by a 140 m grey
+  // fringe, and 40% of the ground shaded where the crisp clouds shade 49%. The
+  // map's 20 m texels then blur the edge by about the sun's own width.
+  // Against the step, a crisp edge can only quantize the shadow's last few
+  // tens of metres, and a read-back map showed no banding.
+  const transmittanceAt = (ground, cast) => {
+    const offset = vec3(ground.x, 0, ground.y);
+    const start = layerDistance(cast.y, BASE).toVar();
+    const end = layerDistance(cast.y, TOP).toVar();
+    const count = end.sub(start).div(CLOUD_SHADOW.targetStepKm).ceil()
+      .clamp(CLOUD_SHADOW.minSteps, CLOUD_SHADOW.maxSteps);
+    const step = end.sub(start).div(count).toVar();
+    const depth = float(0).toVar();
+    const distance = start.add(step.mul(0.5)).toVar();
+    Loop(CLOUD_SHADOW.maxSteps, () => {
+      If(distance.greaterThanEqual(end).or(depth.greaterThan(CLOUD_SHADOW.opaqueDepth)), () => { Break(); });
+      depth.addAssign(densityAt(cast.mul(distance), float(1), float(SHADOW_FOOTPRINT), offset)
+        .mul(step).mul(EXTINCTION));
+      distance.addAssign(step);
+    });
+    return depth.negate().exp();
+  };
+
   const texelsPerSlice = width * height / slices;
   const makePass = full => Fn(() => {
     // Interleave each update over the whole hemisphere instead of processing
@@ -360,6 +401,10 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
     .setName(full ? 'Initialize volumetric cloud sky' : 'Update volumetric cloud sky slice');
   const initializePass = makePass(true);
   const updatePass = makePass(false);
+  // No clouds cast no shadow, and nothing is marched to find that out.
+  const shadow = coverage > 0
+    ? createCloudShadowMap({ renderer, sunDirection, transmittanceAt })
+    : null;
 
   const directionUV = d => vec2(atan(d.x, d.z).div(2 * Math.PI).fract(),
     d.y.clamp(0, 1).asin().div(Math.PI / 2).sqrt());
@@ -367,7 +412,7 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
     // Advect each complete snapshot to the same display time before blending.
     // Without this correction moving silhouettes appear twice for a full cycle.
     const windDelta = displayTime.sub(time).mul(windSpeed / 1000);
-    const wind = vec3(windDelta, 0, windDelta.mul(0.32));
+    const wind = vec3(windDelta, 0, windDelta.mul(WIND_Z));
     const offset = cameraPosition.div(1000).sub(vec3(origin.x, 0, origin.y));
     const view = d.mul(depth).add(offset).add(wind).normalize().toVar();
     return directionUV(view);
@@ -398,7 +443,9 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
   const stats = { quality, width, height, steps, slices, coverage, windSpeed,
     maxSteps: 256, targetStepKm: 0.05, fineStepFraction: FINE_FRACTION, maxIterations: MAX_ITERATIONS,
     computeNodeIds: [initializePass.id, updatePass.id],
-    bytes: width * height * 8 * 6 + noiseData.data.byteLength + weatherData.data.byteLength,
+    bytes: width * height * 8 * 6 + noiseData.data.byteLength + weatherData.data.byteLength +
+      (shadow?.stats.bytes ?? 0),
+    shadow: shadow?.stats ?? null,
     generation: 0, updatedTexels: 0, cacheLatencySeconds: cycleDuration,
     /** Observer ground position (x, z) in km that the snapshot being written is marched from. */
     cacheOriginKm: [0, 0],
@@ -448,11 +495,15 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
     previousOrigin.value.set(...snapshotOrigins[0]); currentOrigin.value.set(...snapshotOrigins[1]);
     displayTime.value = elapsed;
     blend.value = 0;
+    await shadow?.bake(observerKm, cloudDrift(elapsed, windSpeed));
+    if (disposed) return;
     cacheReady.value = 1;
     frame = 0; cycleStart = elapsed; lastNow = null; ready = true;
   }
 
   return { sampleNode, stats, bake,
+    /** Sun transmittance to a world position in metres; see `cloud-shadow.js`. */
+    shadowNode: worldPosition => shadow ? shadow.shadowNode(worldPosition) : float(1),
     update(nowSeconds, observer) {
       if (!ready || disposed) return;
       readObserver(observer);
@@ -460,6 +511,9 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
       lastNow = nowSeconds;
       displayTime.value = elapsed;
       stats.updatedTexels = 0;
+      // Before the still-sky early return below: a walker under a still sky
+      // still walks out of the shadow map.
+      shadow?.update(observerKm, cloudDrift(elapsed, windSpeed));
       if (coverage === 0) return;
       // Both initialized skies are identical without wind: no updates needed
       // until the observer walks far enough that the parallax estimate would
@@ -503,6 +557,7 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
       if (disposed) return;
       disposed = true; ready = false;
       initializePass.dispose(); updatePass.dispose();
+      shadow?.dispose();
       noise.dispose(); weather.dispose(); maps.forEach(t => t.dispose()); depths.forEach(t => t.dispose());
     },
   };

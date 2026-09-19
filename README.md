@@ -26,7 +26,8 @@ terrain (0 is flat), `eye` the eye height in metres, `walk` and `run` the
 speeds, `x`/`z`/`heading` the starting framing, `hazenear`/`hazefar` the haze
 band. The package's own A/B dials also apply, for example `?sunelevation=16`
 for a low sun, `?clouds=off`, `?sky=flat`, `?backlight=off`, `?canopy=0`,
-`?underlay=solid`, `?lawnhue=`, `?bladeheight=`, and `?msaa=off`, which
+`?underlay=solid`, `?lawnhue=`, `?bladeheight=`, `?cloudshadows=off`, which
+takes the clouds' shadows off the lawn and the hills, and `?msaa=off`, which
 trades the lawn's edge smoothing for about a quarter of the ground-view frame
 time. They are read in `apps/hills/src/options.js`, which is demo code rather
 than package API.
