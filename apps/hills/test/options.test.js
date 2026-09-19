@@ -71,6 +71,15 @@ test('multisampling is on unless explicitly switched off', () => {
   assert.equal(readSceneOptions('?msaa=0').msaa, true);
 });
 
+test('the demo sky is sparse and calm unless the URL asks otherwise', () => {
+  const defaults = readSceneOptions('');
+  assert.equal(defaults.cloudCoverage, 0.1);
+  assert.equal(defaults.cloudWindSpeed, 4);
+  const asked = readSceneOptions('?cloudcoverage=0.48&cloudwind=12');
+  assert.equal(asked.cloudCoverage, 0.48);
+  assert.equal(asked.cloudWindSpeed, 12);
+});
+
 test('cloud shadows are on unless explicitly switched off', () => {
   assert.equal(readSceneOptions('').cloudShadows, true);
   assert.equal(readSceneOptions('?cloudshadows=off').cloudShadows, false);

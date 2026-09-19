@@ -154,8 +154,14 @@ export function readSceneOptions(search = '', devicePixelRatio = 1) {
     sky: params.get('sky') === 'flat' ? 'flat' : 'atmosphere',
     clouds: params.get('clouds') !== 'off',
     cloudQuality: ['low', 'balanced', 'high'].includes(params.get('cloudquality')) ? params.get('cloudquality') : 'balanced',
-    cloudCoverage: number('cloudcoverage', 0.48, 0, 1),
-    cloudWindSpeed: number('cloudwind', 12, 0, 100),
+    // The weather, in the sky's own units: coverage is a weather parameter, not
+    // a fraction of the sky, and wind is the cloud field's drift in m/s --
+    // which is also how fast the clouds' shadows cross the lawn. The package
+    // defaults are 0.48 and 12 m/s. The demo runs sparser and calmer, chosen
+    // for recordings: at 12 m/s the shadows crossed the lawn at 45 km/h, and
+    // at 0.48 the start point stood under an overcast patch.
+    cloudCoverage: number('cloudcoverage', 0.1, 0, 1),
+    cloudWindSpeed: number('cloudwind', 4, 0, 100),
     // The clouds' shadows on the lawn and the hills: the sun is multiplied by
     // what gets through the clouds between it and each point it lights.
     // `?cloudshadows=off` is the A/B, and it is also how the lawn's colour is

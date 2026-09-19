@@ -37,8 +37,9 @@ export const CLOUD_SHADOW = Object.freeze({
   extentKm: 5.12,
   /** Once the observer's field point is this far from the map's centre, in
    *  either axis, the next map is marched behind the displayed one, a slice a
-   *  frame, and swapped in whole. At the demo's 12 m/s wind that is every 40
-   *  seconds or so, for about a second. */
+   *  frame, and swapped in whole. At the package's default 12 m/s wind that
+   *  is every 40 seconds or so, for about a second; at the demo's 4 m/s,
+   *  every two minutes. */
   recentreKm: 0.5,
   /** Four rows a slice: 0.053 ms in a frame that marches one, measured on an
    *  integrated laptop GPU, so a whole map is about 3.4 ms. */

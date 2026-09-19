@@ -197,12 +197,13 @@ held -- so these numbers compare only with each other.
 About 0.1 ms walking and nothing measurable turning: the lookup is one texture
 read where the lawn is drawn. A first version worked the projection out per
 pixel and cost 0.2-0.3 ms. The march runs only when a map is re-marched --
-every 40 seconds or so at the demo's wind, over 64 frames -- at 0.053 ms in
+every 40 seconds or so at 12 m/s, two minutes at the demo's 4 m/s, over 64 frames -- at 0.053 ms in
 each of those frames (p95 0.058, measured with the wind at 100 m/s), about
 3.4 ms for a whole map.
 
-`measure-cloud-shadows.mjs` at the start point, wind stopped: 96-100% of the
-lawn in the five views that show it is shaded, at 0.22-0.28 of its sunlit
+`measure-cloud-shadows.mjs` at the start point, wind stopped, at the coverage
+the demo then ran at (0.48): 96-100% of the lawn in the five views that show
+it is shaded, at 0.22-0.28 of its sunlit
 luminance, with at most 1% in a shadow's edge. The start point is under a large
 cloud region at the default seed, so every fixed view looks at shade. This is
 where the demo's clouds are, not a fault; `packages/three/docs/sky-internals.md`
