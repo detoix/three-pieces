@@ -98,6 +98,21 @@ reaches zero at the 0.08 early-out, so billows cannot be cut into vertical
 walls along weather contours. (It used to scale density after the threshold,
 which faded clouds instead.)
 
+**A cumulus has a flat base.** It is the height at which rising air
+condenses, the same for every thermal under the cloud, and every cloud in the
+reference photographs (`docs/measuring.md`) shows one: grey under a white top,
+and far off a flat-bottomed lens. The billow octaves that carve a cloud now
+grow in over the lower 40% of its height, the cut at its base is 4.5% of it
+deep (from 6.5%), and erosion fades out below 10%. So the base's footprint is
+the smooth low-frequency shape, cut off flat. With billows everywhere the
+undersides were as lumpy as the tops, and the horizon a band of popcorn.
+Guerrilla's recipes (Schneider 2015, 2017) shape the density with height
+instead -- thin at the base, dense at the top -- and in this renderer that
+brought back the soft look the body with an edge was made to remove; a dome
+taper alone made rounder but blobbier clouds. Cover falls by up to 1.7 points
+in the fixed views, where lobes used to hang below the bases, and the cloud
+compute is unchanged.
+
 **The pattern slides.** The weather map's broad humidity channel shifts the
 shape lookup by up to 0.35 of a tile across its roughly 8 km cells, so the
 3.6 km repeat no longer lines the horizon with the same puffs. The stretch

@@ -124,17 +124,24 @@ A sun march reaching through a whole cloud and a steeper multiple-scattering
 falloff bring the render to 0.74 and 0.10/0.20 at no measurable cost:
 undersides seen toward the sun now read grey under bright rims.
 
-**Next: flat bases.** What the photographs show and the numbers only hint
-at: every cumulus has a flat base, grey under a white top, and a distant one
-is a flat-bottomed lens. This sky's clouds are lumpy all round, and far off
-they are popcorn. The 3D billow noise that carves them decides a cloud's
-underside as much as its top. Guerrilla's density recipes (Schneider 2015,
-2017) make a cloud's cross-section a function of height, with a flat base and
-a narrowing dome. Two quick trials of that recipe did not help as they stood.
-Thinning the base with a density that rises with height brought back the soft,
-out-of-focus look, and a dome taper alone made rounder but blobbier clouds.
-What is left to try is keeping the billows off the base, so a cloud's
-footprint there is the smooth low-frequency shape, cut flat.
+**Done, 2026-09-19: flat bases.** What the photographs show and the numbers
+only hint at: every cumulus has a flat base, grey under a white top, and a
+distant one is a flat-bottomed lens. This sky's clouds were lumpy all round,
+and far off they were popcorn, because the 3D billow noise that carves them
+decided a cloud's underside as much as its top. The billows now grow in over
+the lower 40% of a cloud, so the base is the smooth low-frequency shape, cut
+flat and not eroded. Guerrilla's density recipes (Schneider 2015, 2017) were
+tried first and did not help here: a density thin at the base brought back
+the soft, out-of-focus look, and a dome taper alone made rounder but blobbier
+clouds. The pooled luma numbers barely move -- the classifier counts the grey
+bases as sky -- so this one was judged by eye against the photographs; cover
+and cost are measured and unchanged within a point and a trial's noise.
+
+**Next, if the look needs more:** the band along the horizon is still made of
+small puffs at 25-50 km, where the shape noise's scale is the scale of the
+texture; and the shape noise's billows are all rounded Worley cells, where a
+real cumulus's are a hierarchy (Schneider's curl-noise distortion is the
+obvious next thing to try).
 
 Experiments considered, not adopted -- each has to earn its cost in a matched
 comparison before it lands:

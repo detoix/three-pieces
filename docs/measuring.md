@@ -214,7 +214,9 @@ photograph's absolute luma; the spread and the saturation are what to compare.
 
 What the photographs also show and the numbers do not: every cloud in them
 has a flat base, grey under a white top, and a distant cloud is a
-flat-bottomed lens. That is the look's largest remaining difference.
+flat-bottomed lens. The sky has had those since the flat-base change, judged
+by eye: the classifier counts a grey base as sky, so the pooled spread moves
+by 0.01 at most for it.
 
 Measured 2026-09-19 through the same classifier, at the sky's default coverage
 (0.48) and the demo's (0.1):

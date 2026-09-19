@@ -70,6 +70,19 @@ const LIGHT_GROWTH = 2.45;
 const LIGHT_DETAILED = 2;
 // How far, in shape tiles, the humidity field slides the shape pattern.
 const SHAPE_SLIDE = 0.35;
+// A cumulus's base is flat because it is the height at which rising air
+// condenses, the same for every thermal under it; every cloud in the
+// reference photographs (docs/measuring.md) shows one, grey under a white
+// top, and far off a flat-bottomed lens. The 3D billows that carve a cloud
+// grow in over the lower `BILLOW_RISE` of its height, so its footprint there is
+// the smooth low-frequency shape, cut off over the bottom `BASE_CUT` and not
+// eroded below `SMOOTH_BASE`. With billows everywhere the undersides were as
+// lumpy as the tops, and the horizon a band of popcorn. Shaping the density
+// instead -- thin at the base, dense at the top, as Guerrilla's density
+// recipes do -- brought back the soft look the dense body was made to remove.
+const BILLOW_RISE = 0.4;
+const BASE_CUT = 0.045;
+const SMOOTH_BASE = 0.1;
 
 /** The coverage the weather map is drawn for: at it, local coverage is the
  *  map's own. */
@@ -210,11 +223,12 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
         const slide = vec3(w.z, 0, w.z.mul(0.7)).mul(SHAPE_SLIDE);
         const n = shapeNode.sample(q.div(3.6).add(slide)).level(0).toVar();
         const profileHeight = altitude.sub(BASE).div(mix(float(0.75), float(TOP - BASE), w.y)).toVar();
-        const baseProfile = profileHeight.smoothstep(0, 0.065).mul(profileHeight.smoothstep(0.58, 1).oneMinus()).toVar();
+        const baseProfile = profileHeight.smoothstep(0, BASE_CUT).mul(profileHeight.smoothstep(0.58, 1).oneMinus()).toVar();
         // 0.74, down from 0.76, holds the page's cloud cover now that thin
         // coverage shrinks clouds instead of fading them (measure-clouds.mjs).
         const threshold = c.mul(0.52).oneMinus().mul(0.74).toVar();
-        const billows = n.r.add(n.b.sub(0.5).mul(0.8)).add(n.a.sub(0.5).mul(0.35)).toVar();
+        const billows = n.r.add(n.b.sub(0.5).mul(0.8).add(n.a.sub(0.5).mul(0.35))
+          .mul(profileHeight.smoothstep(0, BILLOW_RISE))).toVar();
         // Thinning coverage shrinks a cloud rather than fading it: scaling the
         // shape before the threshold keeps its boundary crisp, and the shape
         // still reaches zero at the 0.08 early-out, so billows cannot be cut
@@ -231,7 +245,8 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
             const unresolved = vec3(footprint).div(vec3(0.55 / 4, 0.55 / 8, 0.55 / 16)).smoothstep(0.4, 1.2);
             const fine = mix(fineRaw, vec3(...noiseMeans), unresolved);
             const erosion = fine.dot(vec3(0.65, 0.25, 0.1)).oneMinus().mul(0.5).sub(0.08).max(0)
-              .mul(mix(float(1), float(0.35), shape.clamp(0, 1)));
+              .mul(mix(float(1), float(0.35), shape.clamp(0, 1)))
+              .mul(profileHeight.smoothstep(0, SMOOTH_BASE));
             const eroded = shape.sub(erosion).max(0);
             const edge = footprint.mul(EDGE_PER_KM).clamp(EDGE, EDGE_MAX);
             density.assign(eroded.smoothstep(0, edge).mul(eroded.mul(DENSITY_SLOPE).add(DENSITY_BASE)));
