@@ -31,9 +31,11 @@ Remaining, in order:
 
 1. Consumer examples that use only the public APIs: sky alone, grass alone, and
    both on one shared renderer, including resource replacement and teardown.
-2. Package manifests, exports, peer dependencies, declarations and asset
-   inclusion. Generate npm artifacts and source-copy registry entries from the
-   same tagged revision.
+2. Publishing. `packages/three/package.json` already declares the three entry
+   points, their type declarations and the pinned Three.js peer; what is left
+   is checking that the bundled assets ship (the Grass004 maps under
+   `src/grass/assets/`), publishing to npm, and generating the shadcn-style
+   source-copy registry entries from the same tagged revision.
 3. Thin React Three Fiber adapters with explicit WebGPU initialization,
    camera-matrix/update ordering, ownership and demand-render scheduling.
    Animated clouds need continued invalidation with demand rendering; static
@@ -96,6 +98,26 @@ must add no cost.
      so that one hook covers both;
    - the demo connects the two.
 
+Experiments considered, not adopted -- each has to earn its cost in a matched
+comparison before it lands:
+
+- **A dense reference first.** Before changing sample counts, skip distances
+  or density thresholds, render the same seed and cloud time with a much
+  denser march and compare against it at sparse, normal and dense coverage,
+  checking thin wisps, grazing horizon rays and sunlit edges. A speed-up that
+  comes from skipping visible cloud is not a speed-up.
+- **Local light samples every step.** Lighting currently reuses all six sun
+  samples for two occupied primary samples. A variant refreshes the first two
+  (local) samples at every step and reuses only the far four, which should
+  sharpen sun-facing edges at some cost.
+- **Conservative empty-space skipping.** A coarse search that steps back on a
+  hit and integrates finely until the ray has been empty for a while (the
+  pattern in Loboda et al. §3.2) needs *max*-bound occupancy data. The
+  shape-only density bounds the eroded density at the same point, not over a
+  longer step, and averaged noise mipmaps can erase small clouds, so neither
+  is a safe bound on its own. Dense overcast may gain little, and divergence
+  on an integrated GPU can eat the saving.
+
 Known limits that this plan does not remove:
 
 - no cloud attenuation of the lighting probe;
@@ -124,11 +146,14 @@ Known limits that this plan does not remove:
 ## 4. The performance target
 
 The target is **1920x1080 at 60 FPS on an integrated laptop GPU**, with
-capacity left for the rest of the scene. Sustained 60 FPS across all tested
-views is not yet established for the hills demo, and the earlier numbers were
-measured in a scene with a building, not on the hills (see
-[measuring.md](measuring.md) for the last known figures and their caveats).
-The target is an acceptance goal, not a guarantee of the packages.
+capacity left for the rest of the scene. On the hills it is **not met**: the
+ground paths (standing, walking, turning) run at about 44 FPS with GPU p95 of
+21-23 ms, of which cloud compute is about 3.3 ms median, while every
+sky-facing path holds 60 FPS. That is one trial per path (see
+[measuring.md](measuring.md) for the figures and their caveats), enough to
+say where the cost is -- the ground half of the frame -- but not how much a
+change would buy. The target is an acceptance goal, not a guarantee of the
+packages.
 
 Two rules for pursuing it: prefer exact counts (triangles, visible crowns,
 storage bytes) over timing when a claim will be written down, and re-run the

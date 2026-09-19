@@ -100,10 +100,15 @@ earlier building-scene figures, which are no longer the reference.
   GPU p95 9.4-14.1 ms and cloud compute 1.4-1.6 ms.
 - Ordinary cadence, no timestamps: the same ground paths about 41-44 FPS; the
   sky paths 59.7 FPS.
-- Bare ground: 59.5% at 2-3 m, 57.2% at 3-4 m, 77.2% at 6-8 m, 97.3% at
-  16-24 m and 100% past 24 m. The far ring is still not grass.
-- Rendered lawn hue: mean 100.4 over six bands, drifting +5.1 degrees from
-  near to far, at the shipped palette target of 92.
+- Bare ground, at the demo's own blade size (0.65 of the preset's height and
+  width): 59.5% at 2-3 m, 57.2% at 3-4 m, 77.2% at 6-8 m, 80.3% at 8-12 m,
+  97.3% at 16-24 m and 99.9% past 24 m. The far ring is still not grass. The
+  preset's own figures, in the `canopyProxyFrom` comment, are for full-size
+  blades and are lower near the camera; compare like with like.
+- Rendered lawn hue, at the demo's default dials: mean 100.4 over six bands,
+  drifting +5.1 degrees from near to far, at the palette target of 92. The
+  target was swept to land 99 over flat ground at the preset's blade size;
+  a degree and a half on a different framing is not a reason to move it.
 - Sky exposure: the fully fogged band reads 0.6077 against the flat control's
   0.6080 at `skyexposure=7.1`, so the exposure still holds the far band.
 - The 1920x1080 / 60 FPS target is not met on the ground paths.

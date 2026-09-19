@@ -86,9 +86,10 @@ before/after, and record the new number in the constant's comment.
 | `SKY_EXPOSURE` (`apps/hills/src/options.js`) | 7.1 | The sun, the medium or the tone mapper. It is the value at which the fully fogged far band matches the flat `#b8c9b5` control; sweep with `measure-sky.mjs`. |
 | `minHeight`/`maxHeight` (`preset.js`) | 5.5-10.5 cm | Bare-ground coverage. Sweep with `measure-lawn-coverage.mjs`. |
 | `minWidth`/`maxWidth` (`preset.js`) | 4.0-6.5 mm | Bare-ground coverage in the 6-16 m band. Sweep with `measure-lawn-coverage.mjs`. |
+| Demo blade size (`apps/hills/src/options.js`, `?bladeheight=`/`?bladewidth=`) | 0.65 of the preset | The demo's mown look; the hills coverage and hue numbers in `docs/measuring.md` are at this size, not the preset's, so compare like with like. |
 | `canopyProxyFrom`/`To` (`preset.js`) | 8/26 m | Blade resolvability and the coverage curve; both come from measurements, not taste. |
 | `canopyProxyOcclusion` (`preset.js`) | 0.75 | The far field's brightness against photographs; moves if the sun, palette or proxy ramp move. Its comment carries the sweep history. |
-| Cloud presets (`clouds.js`) | balanced | Visual softness against cost; each preset's cache sizes are in `docs/sky-internals.md`. |
+| Cloud presets (`clouds.js`) | balanced | Visual softness against cost; each preset's cache sizes are in `packages/three/docs/sky-internals.md`. |
 | Haze band (`apps/hills/src/options.js`) | 90-1100 m | The demo's framing only; it is a linear ramp, not aerial perspective. |
 | `SUN_ANCHOR`/`SKY_ANCHOR` (`lights.js`) | 3.3491/23.947 | Any change to the authored light pair; `test/sky-atmosphere.test.js` holds the anchors to the authored luminances. |
 

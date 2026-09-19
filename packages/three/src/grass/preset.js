@@ -517,10 +517,14 @@ export const LAWN = Object.freeze({
    *    is an average of grass rather than a look at one blade, and what it
    *    should average to is grass, not the ground behind it.
    *  - **26 m is where there is nothing else left.** Bare ground measures 41%
-   *    at 3-4 m, 69% at 8-12 m, 95% at 16-24 m and over 99% past 24 m
-   *    (measured on the render, off-screen, rather than derived). The far ring still draws blades
-   *    out to 52 m and they cover nothing, so beyond here the lawn *is* the
-   *    underlay and it had better look like a lawn.
+   *    at 3-4 m, 69% at 8-12 m, 95% at 16-24 m and over 99% past 24 m at
+   *    this preset's own blade size (measured on the render, off-screen,
+   *    rather than derived). The hills demo draws its blades at 0.65 of that
+   *    size and leaves more ground bare near the camera -- 57% at 3-4 m, 80%
+   *    at 8-12 m, 97% at 16-24 m -- but the far end is the same: over 99%
+   *    past 24 m. The far ring still draws blades out to 52 m and they cover
+   *    nothing, so beyond here the lawn *is* the underlay and it had better
+   *    look like a lawn.
    *
    *  Below the near end nothing changes: a gap at 2 m is centimetres across,
    *  you can see into it, and what belongs in it is ground. This does not fix
@@ -685,9 +689,13 @@ export const GRASS004_ALBEDO_MEAN = '#606c30';
  *
  * The lesson is the dependency, not the number: this is a property of the
  * rendered image, so it has to be re-swept after any change to the underlay,
- * the occlusion, the lights or the blades' coverage. A rendered-hue sweep
- * (`apps/hills/scripts/measure-lawn-hue.mjs`) is that sweep, and every number
- * above came out of it. Two dials move it at a glance -- `?proxy=0` drops the
+ * the occlusion, the lights or the blades' coverage. Every number above came
+ * out of a rendered-hue sweep over flat ground at the preset's blade size;
+ * `apps/hills/scripts/measure-lawn-hue.mjs` is that sweep for the hills demo,
+ * where 92 lands a mean of 100.4 at the demo's own dials (one trial, see
+ * `docs/measuring.md`). A degree and a half is inside what the reference
+ * photographs hold; move this constant only on a repeated sweep, never to
+ * chase one run. Two dials move it at a glance -- `?proxy=0` drops the
  * rendered mean about 5 degrees and
  * `?groundao=1` drops it about 1, the latter being the *opposite* of what this
  * comment used to claim and the same direction as the `groundCanopyAO` note

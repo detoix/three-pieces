@@ -25,12 +25,12 @@ Mie as the clear-air haze term) and the observer height is an input but does
 not rebake.
 
 The three tables are 256x64, 32x32 and 256x144 -- 424 KiB of RGBA16F in total.
-They are the entire steady-state cost of the atmosphere: a lit fragment pays
-one bilinear fetch of the sky-view table, and a fogged fragment one more. The
-sun does not move and a metre of eye height is nothing against a hundred
-kilometres of air, so the tables are as valid on the last frame as on the
-first; `?sunelevation=` and `?sunazimuth=` rebake the sky-view table and the
-clouds but not the invariant transmittance and multiple-scattering tables.
+They are the entire steady-state cost of the atmosphere: each background pixel
+pays one bilinear fetch of the sky-view table, and each fogged fragment one
+more. The sun does not move and a metre of eye height is nothing against a
+hundred kilometres of air, so the tables are as valid on the last frame as on
+the first; `?sunelevation=` and `?sunazimuth=` rebake the sky-view table and
+the clouds but not the invariant transmittance and multiple-scattering tables.
 
 `atmosphere.js` is the dependency-free scalar contract and `sky-nodes.js` is
 its TSL twin. Every constant and every table mapping is written in the scalar
@@ -197,23 +197,25 @@ change. Cloud attenuation of the probe is not implemented.
 ## Research sources
 
 The architecture is a hybrid of ideas, not a complete implementation of one
-publication. The table records what each source was used for and what its
-performance claims do and do not establish for this renderer.
+publication. The table separates what was adopted -- often adapted, as noted --
+from what a source describes that this renderer does **not** do. The second
+column matters as much as the first: several of these techniques are the
+obvious next experiments, and `docs/roadmap.md` lists them as such.
 
-| Source | What it informed |
-| --- | --- |
-| [Hillaire, *A Scalable and Production Ready Sky and Atmosphere Rendering Technique*, EGSR 2020](https://sebh.github.io/publications/egsr2020.pdf), §§5-7, and the [author's reference implementation](https://github.com/sebh/UnrealEngineSkyAtmosphere) | The compact transmittance, multiple-scattering and sky-view tables; the horizon-concentrated mapping; the separately composited solar disk; the isotropy assumption after the second scattering event. |
-| [Åsberg, *Real-time Rendering of Dynamic Baked Clouds*, KTH 2024](https://www.diva-portal.org/smash/get/diva2%3A1895803/FULLTEXT01.pdf), §§3.6, 4.2, 5.1 | The hemisphere radiance/transmittance cache, partial updates and interpolation between two completed textures while a third is filled. The source itself limits camera translation, cloud speed and response to changing sun, and documents fast-motion ghosting. |
-| [Schneider, Guerrilla, *Nubis³*, 2023](https://www.guerrilla-games.com/read/nubis-cubed) | Weather-controlled voxel profiles, the shape/detail separation, coarse-to-fine traversal with step-back on a hit, near/far light sampling, and static jitter for distant sampling. |
-| [Loboda et al., *Real-time volumetric cloud rendering for games and simulations*, 2025](https://lgm.fri.uni-lj.si/wp-content/uploads/2025/10/250771715.pdf), §§3-4 | The coarse/fine march pattern and the explicit framing of the ambient term as a non-physical approximation. |
-| [Muth, *Real-Time Volumetric Rendering of Meteorological Cloud Data*, TU Wien, 2026](https://www.cg.tuwien.ac.at/research/publications/2026/muth-2026-clouds/), §§3.4, 4.2 | Transmittance-weighted depth and the ghosting/convergence tradeoffs of reprojection-based temporal reuse. |
-| [Mueller, *Smolder*, SIGGRAPH 2026 course](https://advances.realtimerendering.com/s2026/index.html) | Sharing lighting samples at lower frequency than density integration, and the caution that spatially shared lighting can damage temporal stability. |
+| Source | Adopted here | Described there, not implemented here |
+| --- | --- | --- |
+| [Hillaire, *A Scalable and Production Ready Sky and Atmosphere Rendering Technique*, EGSR 2020](https://sebh.github.io/publications/egsr2020.pdf), §§5-7, and the [author's reference implementation](https://github.com/sebh/UnrealEngineSkyAtmosphere) | The transmittance, multiple-scattering and sky-view tables; the horizon-concentrated sky-view mapping; the separately composited solar disk; the isotropy assumption after the second scattering event. | The aerial-perspective volume. The fog here is a linear distance ramp coloured by the sky-view table. |
+| [Åsberg, *Real-time Rendering of Dynamic Baked Clouds*, KTH 2024](https://www.diva-portal.org/smash/get/diva2%3A1895803/FULLTEXT01.pdf), §§3.6, 4.2, 5.1 | The hemisphere radiance/transmittance cache, partial updates, and interpolation between two completed states while a third is filled. | Its square-to-disk mapping, which favours the zenith; this cache's quadratic elevation mapping favours the horizon instead. The source's own limits on camera translation, cloud speed and response to a changing sun apply here too, as does its fast-motion ghosting. |
+| [Schneider, Guerrilla, *Nubis³*, 2023](https://www.guerrilla-games.com/read/nubis-cubed) | The split between a detailed near light sample and cheaper far ones (here: erosion in the first two of six sun samples, shape-only after), and fading detail noise with distance (here: unresolved erosion octaves fade to their measured means). Both are adaptations. | Voxel cloud profiles, conservative signed-distance traversal, the separately cached far-light volume, and static jitter for distant sampling -- this march uses fixed midpoints instead. |
+| [Loboda et al., *Real-time volumetric cloud rendering for games and simulations*, 2025](https://lgm.fri.uni-lj.si/wp-content/uploads/2025/10/250771715.pdf), §§3-4 | Weather-controlled coverage and height profile; broad shape evaluated before detail erosion, which only runs where shape is non-zero; an ambient term that is explicitly a non-physical approximation. | Coarse/fine marching that steps back on a hit (§3.2). |
+| [Muth, *Real-Time Volumetric Rendering of Meteorological Cloud Data*, TU Wien, 2026](https://www.cg.tuwien.ac.at/research/publications/2026/muth-2026-clouds/), §§3.4, 4.2 | Transmittance-weighted depth, used here to warp a hemispherical cache rather than to reconstruct a screen-space history; a sample footprint derived from the step and the texel extent to decide which noise is resolvable. | Half-resolution screen-space integration, temporal reprojection with variance clipping. Its ghosting and convergence tradeoffs are why this renderer keeps no screen-space history. |
+| [Mueller, *Smolder*, SIGGRAPH 2026 course](https://advances.realtimerendering.com/s2026/index.html) | The idea of lighting at a lower frequency than density integration (here: six sun samples reused for two occupied primary samples), with its caution that shared lighting can damage temporal stability. | Transmittance-dependent rate selection, jittered interpolation of shared lighting, wave operations and asynchronous compute. |
 
 The sources' reported timings come from native renderers and other GPUs; none
 of them establishes performance for this browser, GPU class or API. Where a
-technique was adapted rather than reproduced (lighting-sample reuse, the
-mean-distance warp, mean-faded erosion), the deviation is called out in
-`sky-nodes.js` and `clouds.js`, and acceptance still requires runs in a
+technique was adapted rather than reproduced -- lighting-sample reuse, the
+mean-distance warp, mean-faded erosion -- the sections above describe what
+this renderer actually does, and acceptance still requires runs in a
 hardware-WebGPU browser.
 
 For the grass side of the same demo, see

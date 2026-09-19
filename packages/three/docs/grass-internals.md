@@ -11,7 +11,9 @@ this one was reconciled against the code and is the one to trust.
 
 A realistic, short, mown residential lawn with **no wind**: blades a few
 centimetres tall, narrow and close together, seen from a walking eye height.
-Blades cast no shadows and receive the scene's. The host owns the renderer,
+Blades cast no shadows; they receive the scene's when the host asks for it
+(`shadows`, on by default in the package, off in the hills demo, which has no
+shadow map). The host owns the renderer,
 terrain, camera and frame loop; the package owns blade geometry, placement,
 culling, storage and the shared lawn surface.
 
@@ -114,8 +116,10 @@ handover. The near and mid rings draw a two-triangle ribbon; the far ring one
 triangle. Most leaves have clipped tips with one pointed younger leaf per four
 tillers. Tiller identity is kept even where local positions coincide, because
 the vertex stage derives each tiller's bend, heading and crown offset from the
-vertex index. `?shadows=off` isolates the cost of the blade materials
-receiving terrain shadows.
+vertex index. Receiving shadows is the `shadows` option, which sets the
+blades' `receiveShadow`; it costs a shadow-map lookup per blade fragment only
+when a light casts shadows. The hills demo has no shadow-casting light and
+passes `false`.
 
 Lighting is diffuse plus transmission, with three deliberate departures from a
 stock `PhysicalLightingModel`:
@@ -150,11 +154,13 @@ the A/B controls for these terms.
 
 How much neighbouring blades agree is `LAWN.clumpPull`. It shipped at 1.2,
 where a 45 cm clump outvoted each crown's own yaw and a whole patch presented
-one normal to the sun, which is meadow grain rather than mown turf. It is 0.3,
-with `tillerFan` at 1 radian so a crown's own blades supply the variety. A
-pull within `CLUMP_PULL_MARGIN` of 1 can cancel an opposed crown and clump to a
-vector with no direction to normalize, so `createGrass` rejects it and the
-demo's dial steps over the band.
+one normal to the sun, which is meadow grain rather than mown turf. The preset
+is 0.3, with `tillerFan` at 1 radian so a crown's own blades supply the
+variety. The hills demo goes further and passes 0.15 and 1.8 through
+`posture` (its `?clumppull=` and `?tillerfan=` defaults), so what the demo
+shows is the looser of the two. A pull within `CLUMP_PULL_MARGIN` of 1 can
+cancel an opposed crown and clump to a vector with no direction to normalize,
+so `createGrass` rejects it and the demo's dial steps over the band.
 
 ## Palette and the ground surface
 
@@ -164,11 +170,15 @@ Colour Index, whose hue transform is `(H - 60) / 60`: 60 degrees is a lawn's
 yellow end, 120 its deep-green end, and a reference photograph of a well-fed
 lawn measures **99** and holds it at every depth. The lawn first rendered at
 **75**, because the blade greens were authored at 87-91, the Grass004 underlay
-is 72, and the warm sun took another 5-7 degrees on the way through. The
-palette target is earlier than the image target because the albedo must
-overshoot what the image is aimed at, and how far is swept rather than derived:
-rendered mean hue is close to linear in the number, at about 0.93 degrees of
-image per degree of palette. `lawnColorsFor()` rotates every green by one delta
+is 72, and the warm sun took another 5-7 degrees on the way through. So the
+palette is not the image: the palette target is **92** while the image is
+aimed at 99, and the gap between them is swept rather than derived -- rendered
+mean hue is close to linear in the palette number, at about 0.93 degrees of
+image per degree of palette. On the hills demo, at its own dials, 92 lands a
+mean of 100.4 (one trial, `docs/measuring.md`). The gap has moved in both
+directions as the underlay, occlusion and lights changed; the history is in
+the `LAWN_TARGET_HUE` comment in `preset.js`, and the constant is re-swept,
+never re-derived, when any of them moves. `lawnColorsFor()` rotates every green by one delta
 and solves each back to its original linear luminance, because rotating a hue
 in HSV alone changes how bright a colour reads. The underlay is a photograph
 and cannot be recoloured, so it receives a per-channel `groundTint` carrying

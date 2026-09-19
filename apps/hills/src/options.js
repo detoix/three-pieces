@@ -28,13 +28,15 @@ const SUN_ANGLES = sunAnglesOf(SHIPPED_SUN_OFFSET);
  *
  * The atmosphere is solved with the sun's irradiance set to 1, so this number
  * is the sun in render units and it decides the whole image. It is measured,
- * not chosen: a sweep read the rendered horizon back off
- * the real adapter, and this is the value at which the horizon keeps the
- * luminance the flat `#b8c9b5` background and its matching fog had. Holding
- * the horizon still is the conservative choice, because the horizon is what
- * the far field dissolves into -- the lawn's measured hue is calibrated over
- * depth, and re-exposing the far band would move it. Everything above the
- * horizon then lands where the physics puts it relative to that.
+ * not chosen: a sweep read the rendered horizon back off the real adapter,
+ * and this is the value at which the fully fogged band keeps the luminance the
+ * flat `#b8c9b5` background and its matching fog had -- on these hills 0.6077
+ * against the control's 0.6080 (`scripts/measure-sky.mjs`, run with and
+ * without `?sky=flat`). Holding the horizon still is the conservative choice,
+ * because the horizon is what the far field dissolves into -- the lawn's
+ * measured hue is calibrated over depth, and re-exposing the far band would
+ * move it. Everything above the horizon then lands where the physics puts it
+ * relative to that.
  */
 const SKY_EXPOSURE = 7.1;
 
