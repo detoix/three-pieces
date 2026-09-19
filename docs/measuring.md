@@ -22,6 +22,7 @@ process when done.
 | `measure-sky.mjs` | Rendered sky radiance and the fully fogged far band's luminance, with the instrument eye raised so the band is resolvable | `SKY_EXPOSURE`, the sun, the medium or the tone mapper move |
 | `measure-lawn-hue.mjs` | Rendered hue, saturation and luminance over six depth bands | The underlay, occlusion, lights, palette or blade coverage move (these interact, so re-sweep together) |
 | `measure-lawn-coverage.mjs` | Fraction of bare ground by distance, with the underlay painted emissive | Blade height, blade width, tillering or ring density move |
+| `measure-clouds.mjs` | Cloud cover, luma spread and the colour of the shaded parts over the six fixed views, wind stopped | Anything in the cloud density, march or lighting; the look was tuned against these numbers |
 
 Every tool checks the renderer's `adapterInfo` and refuses to report a number
 for a software device. Every one prints its findings and writes them as JSON
@@ -47,6 +48,13 @@ frames, and a recording perturbs both.
   adapter renders everything at a speed that measures nothing.
 - **Hash the source before and after each run.** If any served file changed
   during the run, the run is invalid and the tools say so.
+- **Check what the server is serving, not only what is on disk.** The hash is
+  of the files; the dev server can keep serving a module it missed a change
+  to. Swapping source with `git stash` under a running Vite did exactly that
+  once, and a whole round of shots rendered the old clouds. After swapping
+  source for an A/B, fetch the module from the server (`curl
+  http://127.0.0.1:5173/@fs/<absolute path>`) and check it is the version you
+  meant, or restart the server.
 - **CPU tests see no GPU work.** Passing `pnpm test` is a precondition, never
   evidence about a shader or a frame.
 
@@ -79,6 +87,9 @@ node scripts/record-motion.mjs --path seam --label seam-before
 node scripts/measure-sky.mjs --label sky-071
 node scripts/measure-lawn-hue.mjs --label hue-92
 node scripts/measure-lawn-coverage.mjs --label blades-055-0105
+
+# The cloud look
+node scripts/measure-clouds.mjs --label clouds-before
 ```
 
 Each writes under `apps/hills/measurements/<label>/` unless `--out` says

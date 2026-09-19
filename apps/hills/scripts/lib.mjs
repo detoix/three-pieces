@@ -131,6 +131,35 @@ export async function requireHardwareAdapter(page) {
   return adapter;
 }
 
+/**
+ * The fixed looks every visual tool shares, so their numbers and pictures are
+ * of the same framings: the opening view (null = as the page opens), along
+ * the horizon toward the sun, across it and away from it, and two raised
+ * views. Elevation and azimuth in degrees; `SUN_AZIMUTH` is the demo's sun.
+ */
+export const SUN_AZIMUTH = 54.689;
+export const FIXED_VIEWS = Object.freeze([
+  ['default', null, null],
+  ['sun-horizon', 6, SUN_AZIMUTH],
+  ['across-horizon', 6, SUN_AZIMUTH + 90],
+  ['away-horizon', 6, SUN_AZIMUTH + 180],
+  ['across-30', 30, SUN_AZIMUTH - 90],
+  ['away-50', 50, SUN_AZIMUTH + 180],
+]);
+
+/** Points the demo's camera; null elevation leaves the opening framing. */
+export async function aimCamera(page, elevation, azimuth) {
+  if (elevation === null) return;
+  await page.evaluate(({ elevation, azimuth }) => {
+    const camera = window.__hills.camera;
+    camera.rotation.order = 'YXZ';
+    // YXZ forward is (-sin yaw cos pitch, sin pitch, -cos yaw cos pitch);
+    // azimuth runs from +Z toward +X, so yaw = PI + azimuth.
+    camera.rotation.set((elevation * Math.PI) / 180, Math.PI + (azimuth * Math.PI) / 180, 0);
+    camera.updateMatrixWorld(true);
+  }, { elevation, azimuth });
+}
+
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', '.git', 'measurements', 'shots']);
 
 /** Content hash of every served source file, for before/after checks. */

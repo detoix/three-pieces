@@ -69,6 +69,7 @@ counts are in [`docs/measuring.md`](docs/measuring.md).
 | `measure-sky.mjs` | Sky directions and the fully fogged far band | `SKY_EXPOSURE`, sun, medium or tone mapper move |
 | `measure-lawn-hue.mjs` | Hue/saturation/luminance over six depth bands | Underlay, occlusion, lights, palette or coverage move |
 | `measure-lawn-coverage.mjs` | Bare ground by distance | Blade height, width, tillering or ring density move |
+| `measure-clouds.mjs` | Cloud cover, luma spread and shaded colour over the six fixed views | Cloud density, march or lighting move |
 
 Rules that make a number count: warmup before each sample, at least three
 trials with variants alternated, timestamp and cadence runs kept separate,
