@@ -125,8 +125,9 @@ step back on a hit (Loboda et al. §3.2); like the coarse march before it, it
 does not skip a whole coarse step it has not sampled, so it is no less
 conservative than a plain march at the coarse step.
 
-**Lighting** uses six sun samples, at the midpoints of segments growing 2.1x
-from 15 m, which reaches about 0.6 km. The first two read the full body with
+**Lighting** uses six sun samples, at the midpoints of segments growing 2.45x
+from 15 m, which reaches 1.3 km: the path from a cumulus's underside to a
+49-degree sun through a kilometre of cloud. The first two read the full body with
 erosion; the other four read a smooth density (the shape field, not the sharp
 body), because a segment a few hundred metres long averages over a cloud and
 its gaps, and a single point there used to decide the shading of a whole patch
@@ -142,7 +143,7 @@ transcribes term for term and `test/sky-cloud-lighting.test.js` holds:
   a dual Henyey-Greenstein phase (g 0.65 and -0.2, weighted 0.8 / 0.2) that
   keeps the silver lining toward the sun.
 - **Multiple scattering** diffuses rather than dying off like the beam:
-  `msWeight / (4 pi)`, isotropic, falling as `1 / (1 + 0.4 tau)`. It is what
+  `msWeight / (4 pi)`, isotropic, falling as `1 / (1 + 1.2 tau)`. It is what
   keeps a shaded side grey; an exponential in the optical depth handed it to
   the blue sky ambient instead.
 - **Powder**: seen from the sun's side, a thin fringe has had few scattering
@@ -156,13 +157,28 @@ transcribes term for term and `test/sky-cloud-lighting.test.js` holds:
   behind them, as before.
 
 These are rendering approximations tuned against the image, not an
-energy-validated scattering model or a meteorological simulation. The tuning
-was held to the page's previous character with
+energy-validated scattering model or a meteorological simulation. The first
+tuning was held to the page's previous character with
 `apps/hills/scripts/measure-clouds.mjs`: across the six fixed views, cloud
 cover within a point of what it was in five of them (the humidity slide moved
 clouds out of the sixth, 22.5% to 18.1%), the same luma spread -- 0.7-0.9
 from the 10th to the 90th percentile of cloud pixels -- and the shaded tenth
 of the cloud a greyer blue, hue 205 against 209-217.
+
+The second is held to real skies instead. `measure-photos.mjs` puts ten
+fair-weather cumulus photographs through the same classifier: pooled, cloud
+luma 0.62/0.77/0.90 at the 10th/50th/90th percentile, a spread of 0.69, and
+saturation 0.08/0.19 at the 50th/90th. At the sky's default coverage the
+render measured 0.68/0.78/0.89, a spread of 0.77 and saturation 0.07/0.15:
+flatter and more neutral than any sky in the set. Two changes close most of
+it -- the sun march reaching through a whole cloud, and a steeper
+multiple-scattering falloff (1.2, from 0.4) -- to 0.65/0.77/0.88, 0.74, and
+0.10/0.20, with cloud cover unchanged (`measure-clouds.mjs` now finds cover
+by rendering each view again without clouds, so shading cannot pass for less
+cloud). At the demo's coverage, 0.1, the spread goes from 0.82 to 0.79 and
+the saturation to the photographs' own 0.08/0.19; small clouds have less
+depth to shade. Toward the sun the change is plainest: undersides that were
+lit white now read grey under bright rims.
 
 **What it costs.** The same as the soft clouds it replaced: over three
 alternating GPU-timed trials each at 1920x1080 on an integrated laptop GPU,
@@ -331,11 +347,11 @@ with 3 s warmup and 10 s samples:
   than as clouds. The humidity slide keeps neighbouring 3.6 km tiles from
   matching, but the scale of the shape noise is still the scale of the
   horizon's texture.
-- **The lighting is tuned, not validated.** The multiple-scattering falloff,
-  powder and ground bounce were chosen against the rendered image and the
-  previous page's luma and cover, not derived. The sun march reaches about
-  0.6 km and past its first two samples (about 30 m) it reads a smoothed
-  density, so there are no long-range shadows cast by one cloud on another.
+- **The lighting is tuned, not validated.** The multiple-scattering falloff
+  is set against photographs, and powder and the ground bounce against the
+  rendered image; none is derived. The sun march reaches 1.3 km and past its
+  first two samples (about 40 m) it reads a smoothed density, so one cloud's
+  shadow on another is soft and reaches no further than that.
 - **Cloud shadows shade the sun, not the sky.** Under a cloud, only the direct
   beam is taken away; the host's sky light is the clear-sky probe's, and
   there is still no cloud attenuation of the probe. Positions above the cloud

@@ -22,11 +22,16 @@ export const CLOUD_LIGHTING = Object.freeze({
    *
    *  The slab law's own coefficient, about `0.75 (1 - g)` for droplets, is
    *  near 0.1; at that, the shaded cores of clouds seen toward the sun were
-   *  as bright as their edges. 0.4 is chosen against the rendered image
-   *  (`apps/hills/scripts/measure-clouds.mjs`): it gives the same luma spread
-   *  the page had before, 0.7-0.9 from the 10th to the 90th percentile of
-   *  cloud pixels, with the shaded tenth grey-blue rather than slate. */
-  msFalloff: 0.4,
+   *  as bright as their edges. 1.2 is set against photographs: ten
+   *  fair-weather cumulus from Wikimedia Commons (listed in
+   *  `docs/measuring.md`) measure, pooled, a 10th-to-90th-percentile luma
+   *  ratio of 0.69 and median saturation 0.08 through the same classifier
+   *  (`measure-photos.mjs`). The render measured 0.77 and 0.07 at 0.4, and
+   *  0.74 and 0.10 at 1.2, at the sky's default coverage; 0.8 and 1.6 moved
+   *  the ratio no further. The rest of the gap is the undersides this sky's
+   *  clouds do not yet have. 0.4 had been chosen to keep the page's earlier
+   *  look, not a real sky's. */
+  msFalloff: 1.2,
   /** How much multiply scattered sunlight a sample carries, relative to the
    *  sun, and its phase: isotropic, because it has forgotten its direction. A
    *  forward-leaning lobe (g 0.2-0.35 was tried) lit the faces seen toward the

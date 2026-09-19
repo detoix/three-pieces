@@ -71,6 +71,7 @@ counts are in [`docs/measuring.md`](docs/measuring.md).
 | `measure-lawn-coverage.mjs` | Bare ground by distance | Blade height, width, tillering or ring density move |
 | `measure-clouds.mjs` | Cloud cover, luma spread and shaded colour over the six fixed views | Cloud density, march or lighting move |
 | `measure-cloud-shadows.mjs` | How much lawn is shaded and how dark, against `?cloudshadows=off` | The shadow map, cloud density, sun or light balance move |
+| `measure-photos.mjs` | The same luma spread and saturation for photographs | The reference set in `docs/measuring.md` changes |
 
 Rules that make a number count: warmup before each sample, at least three
 trials with variants alternated, timestamp and cadence runs kept separate,
@@ -92,7 +93,7 @@ before/after, and record the new number in the constant's comment.
 | `canopyProxyFrom`/`To` (`preset.js`) | 8/26 m | Blade resolvability and the coverage curve; both come from measurements, not taste. |
 | `canopyProxyOcclusion` (`preset.js`) | 0.75 | The far field's brightness against photographs; moves if the sun, palette or proxy ramp move. Its comment carries the sweep history. |
 | Cloud presets (`clouds.js`) | balanced | Visual softness against cost; each preset's cache sizes are in `packages/three/docs/sky-internals.md`. |
-| Cloud look (`cloud-lighting.js`; `EDGE`, `DENSITY_*`, feather and threshold in `clouds.js`) | see the files | Tuned against `measure-clouds.mjs` to keep the page's cloud cover and luma spread while making edges crisp and shadows grey; re-run it and `shoot.mjs` before and after, and time the sky paths -- the look currently costs what the old one did. `test/sky-cloud-lighting.test.js` holds the lighting's properties. |
+| Cloud look (`cloud-lighting.js`; `EDGE`, `DENSITY_*`, feather and threshold in `clouds.js`) | see the files | `msFalloff` is set against photographs: the render's luma spread and saturation (`measure-clouds.mjs`) beside a real sky's (`measure-photos.mjs`, set in `docs/measuring.md`). The rest keeps the cloud cover while making edges crisp. Re-run both tools and `shoot.mjs` before and after, and time the sky paths. `test/sky-cloud-lighting.test.js` holds the lighting's properties. |
 | Cloud shadow map (`CLOUD_SHADOW` in `cloud-shadow.js`) | 256 texels over 5.12 km; re-marched at 0.5 km | The texel is the sun's penumbra; the recentre and jump distances give the 1.56 km reach that `test/sky-cloud-shadow.test.js` checks by simulation. Re-run `measure-cloud-shadows.mjs`, and time the march with `benchmark.mjs` at `?cloudwind=100`. |
 | Haze band (`apps/hills/src/options.js`) | 90-1100 m | The demo's framing only; it is a linear ramp, not aerial perspective. |
 | `SUN_ANCHOR`/`SKY_ANCHOR` (`lights.js`) | 3.3491/23.947 | Any change to the authored light pair; `test/sky-atmosphere.test.js` holds the anchors to the authored luminances. |

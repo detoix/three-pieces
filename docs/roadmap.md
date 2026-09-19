@@ -115,6 +115,27 @@ in proportion instead of only trimming the humid ones. At 0.1 the opening is
 sunlit in all six fixed views and 17% of the ground around the start is
 shaded, against 49% at 0.48: a shadow now passes occasionally.
 
+**Done, 2026-09-19: the shading held to photographs.** Ten fair-weather
+cumulus photographs, measured through the same classifier as the render
+(`measure-photos.mjs`, set listed in `docs/measuring.md`), have a wider
+luma spread and bluer shade than the sky had: 0.69 against 0.77, median
+saturation 0.08 against 0.07, and 0.19 against 0.15 at the 90th percentile.
+A sun march reaching through a whole cloud and a steeper multiple-scattering
+falloff bring the render to 0.74 and 0.10/0.20 at no measurable cost:
+undersides seen toward the sun now read grey under bright rims.
+
+**Next: flat bases.** What the photographs show and the numbers only hint
+at: every cumulus has a flat base, grey under a white top, and a distant one
+is a flat-bottomed lens. This sky's clouds are lumpy all round, and far off
+they are popcorn. The 3D billow noise that carves them decides a cloud's
+underside as much as its top. Guerrilla's density recipes (Schneider 2015,
+2017) make a cloud's cross-section a function of height, with a flat base and
+a narrowing dome. Two quick trials of that recipe did not help as they stood.
+Thinning the base with a density that rises with height brought back the soft,
+out-of-focus look, and a dome taper alone made rounder but blobbier clouds.
+What is left to try is keeping the billows off the base, so a cloud's
+footprint there is the smooth low-frequency shape, cut flat.
+
 Experiments considered, not adopted -- each has to earn its cost in a matched
 comparison before it lands:
 

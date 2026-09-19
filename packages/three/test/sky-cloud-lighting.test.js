@@ -62,14 +62,17 @@ test('sunlight inside a cloud never grows with depth toward the sun', () => {
 test('a shaded side stays lit by diffused light, not by Beer alone', () => {
   // An exponential in the optical depth to the sun is what let one far sun
   // sample stamp a dark patch. Diffusion falls off algebraically: twenty
-  // optical depths in, a body still keeps a tangible share of its lit face.
-  for (const mu of [-0.5, 0.3, 0.9]) {
+  // optical depths in, a body still keeps a tangible share of its lit face --
+  // 2.5% or more seen from the side or with the sun behind the eye, and less
+  // looking into the sun, where the lit face carries the silver lining and a
+  // backlit cumulus shows its darkest core against its brightest rim.
+  for (const [mu, floor] of [[-1, 0.025], [-0.5, 0.025], [0.3, 0.025], [0.9, 0.01], [1, 0.005]]) {
     const lit = cloudSunScattering({ opticalDepth: 0, density: 3, mu });
     const shaded = cloudSunScattering({ opticalDepth: 20, density: 3, mu });
     const ratio = shaded / lit;
-    assert.ok(ratio > 0.03, `mu ${mu}: ${ratio} of the lit face is a black hole, not a shaded side`);
+    assert.ok(ratio > floor, `mu ${mu}: ${ratio} of the lit face is a black hole, not a shaded side`);
     assert.ok(ratio < 0.3, `mu ${mu}: ${ratio} of the lit face has no shading left`);
-    assert.ok(ratio > 1e6 * Math.exp(-20));
+    assert.ok(ratio > 1e6 * Math.exp(-20), 'algebraic, not exponential');
   }
 });
 

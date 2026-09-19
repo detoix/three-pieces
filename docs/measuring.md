@@ -22,7 +22,8 @@ process when done.
 | `measure-sky.mjs` | Rendered sky radiance and the fully fogged far band's luminance, with the instrument eye raised so the band is resolvable | `SKY_EXPOSURE`, the sun, the medium or the tone mapper move |
 | `measure-lawn-hue.mjs` | Rendered hue, saturation and luminance over six depth bands, with cloud shadows off | The underlay, occlusion, lights, palette or blade coverage move (these interact, so re-sweep together) |
 | `measure-lawn-coverage.mjs` | Fraction of bare ground by distance, with the underlay painted emissive and cloud shadows off | Blade height, blade width, tillering or ring density move |
-| `measure-clouds.mjs` | Cloud cover, luma spread and the colour of the shaded parts over the six fixed views, wind stopped | Anything in the cloud density, march or lighting; the look was tuned against these numbers |
+| `measure-clouds.mjs` | Cloud cover (against the same views rendered without clouds), luma spread, saturation and the colour of the shaded parts over the six fixed views, wind stopped | Anything in the cloud density, march or lighting; the look was tuned against these numbers |
+| `measure-photos.mjs` | The same luma spread and saturation for photographs, through the same classifier | When the reference set changes; its numbers are the target for the cloud look |
 | `measure-cloud-shadows.mjs` | How much of the lawn in view is shaded and how dark, over the six fixed views, against the same views with `?cloudshadows=off`, wind stopped | The shadow map, the cloud density, the sun, or the balance of the lights |
 
 Every tool checks the renderer's `adapterInfo` and refuses to report a number
@@ -92,6 +93,8 @@ node scripts/measure-lawn-coverage.mjs --label blades-055-0105
 # The cloud look, and the shadows it casts
 node scripts/measure-clouds.mjs --label clouds-before
 node scripts/measure-cloud-shadows.mjs --label shadows-before
+# ...and what a real sky measures (see "Reference photographs" below)
+node scripts/measure-photos.mjs --label cumulus ~/cloud-photos/*.jpg
 
 # The shadow march only runs when a map is re-marched; a fast wind makes that
 # every five seconds, so a sample catches it
@@ -181,6 +184,49 @@ How to read it:
   (GPU median 17.3-18.3 ms) on 2026-09-18 and about 59 FPS (16.0 ms) on
   2026-09-19. Clock and thermal state move a frame more than most changes
   do, which is why the rules above ask for alternating trials.
+
+## Reference photographs
+
+The cloud look is compared against photographs, not only against its own
+history. The set is ten fair-weather cumulus photographs from Wikimedia
+Commons, downloaded at 1280 px wide; they are not kept here, so fetch them by
+title to repeat a measurement:
+
+| Commons file | Licence |
+| --- | --- |
+| Cumulus clouds in fair weather.jpeg | CC BY-SA 2.0 |
+| 2021-06-28 11 44 42 Cumulus clouds above a field in the Dulles section of Sterling, Loudoun County, Virginia.jpg | CC BY-SA 4.0 |
+| 2021-06-28 11 51 55 Cumulus clouds above a field in the Dulles section of Sterling, Loudoun County, Virginia.jpg | CC BY-SA 4.0 |
+| Cumulus humilis clouds.jpg | CC BY-SA 3.0 |
+| Cumulus humilis.jpg | CC BY-SA 3.0 |
+| Fair weather clouds in California.jpg | CC BY 2.0 |
+| Cumulus mediocris-1.jpg | CC BY-SA 3.0 |
+| Fair weather clouds.jpg | CC BY-SA 4.0 |
+| Cumulus humilis Schönwald im Schwarzwald 20180810.jpg | CC BY-SA 4.0 |
+| Cumulus Humilis Clouds 41.jpg | CC BY-SA 4.0 |
+
+Pooled through `measure-photos.mjs`: cloud luma 0.62/0.77/0.90 at the
+10th/50th/90th percentile, a spread (10th over 90th) of 0.69, and saturation
+0.08/0.19 at the 50th/90th. Photograph to photograph the spread runs
+0.63-0.85 and the median saturation 0.03-0.15, so a render inside those
+ranges is inside what real skies do. Auto-exposure and processing move a
+photograph's absolute luma; the spread and the saturation are what to compare.
+
+What the photographs also show and the numbers do not: every cloud in them
+has a flat base, grey under a white top, and a distant cloud is a
+flat-bottomed lens. That is the look's largest remaining difference.
+
+Measured 2026-09-19 through the same classifier, at the sky's default coverage
+(0.48) and the demo's (0.1):
+
+| Render | Spread, 0.48 | Saturation, 0.48 | Spread, 0.1 | Saturation, 0.1 |
+| --- | ---: | ---: | ---: | ---: |
+| Before (falloff 0.4, sun march 0.6 km) | 0.77 | 0.07/0.15 | 0.82 | 0.06/0.17 |
+| After (falloff 1.2, sun march 1.3 km) | 0.74 | 0.10/0.20 | 0.79 | 0.08/0.19 |
+
+Cloud cover is unchanged by it -- 48.8/77.8/48.7/49.1/18.3/7.6% at 0.48 --
+and so is the sky's compute: 0.91-0.96 ms a frame looking at the sky, three
+alternating trials of each on an integrated laptop GPU at 1920x1080.
 
 ## Cloud shadows
 

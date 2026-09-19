@@ -160,6 +160,89 @@ export async function aimCamera(page, elevation, azimuth) {
   }, { elevation, azimuth });
 }
 
+/**
+ * The cloud classifier, shared by `measure-clouds.mjs` and `measure-photos.mjs`
+ * so that a render and a photograph are measured the same way. It runs in the
+ * page: hand `cloudPixelsSource` to `page.evaluate` and rebuild it there with
+ * `new Function`. Every other pixel in both directions; a pixel is ground when
+ * it is clearly green, cloud when it is nearly unsaturated and bright, and sky
+ * otherwise. The classifier is crude on purpose -- it is the same crude
+ * classifier for every image, so a change in its numbers is a change in the
+ * image -- and it has one bias worth knowing: a shaded cloud blue enough to
+ * pass saturation 0.22 counts as sky, in a photograph as in a render.
+ *
+ * Returns the sky and cloud pixel counts, 256-bin histograms of cloud luma and
+ * saturation (so views can be pooled), and the mean colour of the darkest 15%
+ * of cloud pixels.
+ */
+export function cloudPixels(data, width, height) {
+  let sky = 0;
+  const lumaHistogram = new Array(256).fill(0);
+  const saturationHistogram = new Array(256).fill(0);
+  const cloud = [];
+  for (let y = 0; y < height; y += 2) {
+    for (let x = 0; x < width; x += 2) {
+      const index = (y * width + x) * 4;
+      const r = data[index] / 255;
+      const g = data[index + 1] / 255;
+      const b = data[index + 2] / 255;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const saturation = max > 0 ? (max - min) / max : 0;
+      if (g > r * 1.15 && g > b * 1.15 && saturation > 0.3) continue;
+      sky += 1;
+      if (saturation < 0.22 && max > 0.45) {
+        const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        lumaHistogram[Math.min(255, Math.floor(luma * 256))] += 1;
+        saturationHistogram[Math.min(255, Math.floor(saturation * 256))] += 1;
+        cloud.push(luma, r, g, b);
+      }
+    }
+  }
+  const clouds = cloud.length / 4;
+  let cutoff = 0;
+  for (let count = 0; cutoff < 256 && count < clouds * 0.15; cutoff += 1) count += lumaHistogram[cutoff];
+  const shaded = [0, 0, 0];
+  let dark = 0;
+  for (let i = 0; i < cloud.length; i += 4) {
+    if (cloud[i] * 256 >= cutoff) continue;
+    shaded[0] += cloud[i + 1];
+    shaded[1] += cloud[i + 2];
+    shaded[2] += cloud[i + 3];
+    dark += 1;
+  }
+  return {
+    sky,
+    clouds,
+    lumaHistogram,
+    saturationHistogram,
+    shaded: dark ? shaded.map((channel) => channel / dark) : null,
+  };
+}
+export const cloudPixelsSource = cloudPixels.toString();
+
+/** Quantiles of a 256-bin histogram of values in [0, 1), at bin centres. */
+export function histogramQuantiles(histogram, quantiles) {
+  const total = histogram.reduce((sum, count) => sum + count, 0);
+  return quantiles.map((q) => {
+    let seen = 0;
+    for (let bin = 0; bin < histogram.length; bin += 1) {
+      seen += histogram[bin];
+      if (seen >= q * total) return (bin + 0.5) / histogram.length;
+    }
+    return 1;
+  });
+}
+
+/** The numbers a look is compared on: luma spread and saturation of cloud. */
+export function cloudLook(histograms) {
+  const sum = (key) => histograms.reduce((total, item) => total.map((count, bin) => count + item[key][bin]),
+    new Array(256).fill(0));
+  const luma = histogramQuantiles(sum('lumaHistogram'), [0.1, 0.5, 0.9]);
+  const saturation = histogramQuantiles(sum('saturationHistogram'), [0.5, 0.9]);
+  return { luma, contrast: luma[0] / luma[2], saturation };
+}
+
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', '.git', 'measurements', 'shots']);
 
 /** Content hash of every served source file, for before/after checks. */

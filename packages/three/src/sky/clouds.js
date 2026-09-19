@@ -60,11 +60,13 @@ const OPAQUE = 0.005;
 // ones, or eight fine ones, which together span about the same distance.
 const LIGHT_REUSE_COARSE = 2;
 const LIGHT_REUSE_FINE = 8;
-// Sun samples: six, at the midpoints of segments growing 2.1x from 15 m, which
-// reaches about 0.6 km. The first two read the full body with erosion, the
-// rest the smooth shape.
+// Sun samples: six, at the midpoints of segments growing 2.45x from 15 m, which
+// reaches 1.3 km -- the path from a cumulus's underside, 1 km below its top,
+// to a 49-degree sun. At 2.1x it reached 0.6 km, and undersides seen toward
+// the sun were lit as though half the cloud above them were not there. The
+// first two read the full body with erosion, the rest the smooth shape.
 const LIGHT_FIRST_KM = 0.015;
-const LIGHT_GROWTH = 2.1;
+const LIGHT_GROWTH = 2.45;
 const LIGHT_DETAILED = 2;
 // How far, in shape tiles, the humidity field slides the shape pattern.
 const SHAPE_SLIDE = 0.35;
