@@ -14,6 +14,14 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 export const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const REPO_ROOT = resolve(APP_ROOT, '..', '..');
+
+/**
+ * Everything a run serves: the demo, and the package it links from the
+ * workspace. Hashing only the demo would let a change to the sky or the grass
+ * -- which is most of what gets measured -- slip through a run unnoticed.
+ */
+export const SOURCE_ROOTS = [APP_ROOT, join(REPO_ROOT, 'packages', 'three')];
 
 /** `--key value` and `--key=value`; positionals collect in `_`. */
 export function parseArgs(argv, { values = [] } = {}) {
@@ -125,8 +133,8 @@ export async function requireHardwareAdapter(page) {
 
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', '.git', 'measurements', 'shots']);
 
-/** Content hash of everything tracked plus the scripts, for before/after checks. */
-export async function hashTree(root = APP_ROOT) {
+/** Content hash of every served source file, for before/after checks. */
+export async function hashTree(roots = SOURCE_ROOTS) {
   const files = [];
   async function walk(directory) {
     const entries = await readdir(directory, { withFileTypes: true });
@@ -138,10 +146,10 @@ export async function hashTree(root = APP_ROOT) {
       else if (entry.isFile()) files.push(path);
     }
   }
-  await walk(root);
+  for (const root of [roots].flat()) await walk(root);
   const hash = createHash('sha256');
   for (const file of files) {
-    hash.update(relative(root, file));
+    hash.update(relative(REPO_ROOT, file));
     hash.update(await readFile(file));
   }
   return hash.digest('hex');

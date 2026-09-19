@@ -17,7 +17,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
-  APP_ROOT, appUrl, defaultLabel, hashTree, launchBrowser, loopbackUrl,
+  appUrl, defaultLabel, hashTree, launchBrowser, loopbackUrl,
   openHills, outputDir, parseArgs, requireHardwareAdapter, sanitizeLabel,
   writeJson,
 } from './lib.mjs';
@@ -42,7 +42,7 @@ const url = appUrl(loopbackUrl(args.url), { ui: 0 });
 const output = join(await outputDir(args.out), label);
 await mkdir(output, { recursive: true });
 
-const before = await hashTree(APP_ROOT);
+const before = await hashTree();
 const browser = await launchBrowser();
 const videoChunks = [];
 const frameImages = new Map();
@@ -158,7 +158,7 @@ try {
 } finally {
   await browser.close();
 }
-const after = await hashTree(APP_ROOT);
+const after = await hashTree();
 
 for (const [name, image] of frameImages) {
   await writeFile(join(output, `${name}.png`), image);

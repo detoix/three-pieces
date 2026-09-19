@@ -27,7 +27,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import {
-  APP_ROOT, appUrl, defaultLabel, hashTree, launchBrowser, loopbackUrl,
+  appUrl, defaultLabel, hashTree, launchBrowser, loopbackUrl,
   openHills, outputDir, parseArgs, requireHardwareAdapter, sanitizeLabel,
   summarize, writeJson,
 } from './lib.mjs';
@@ -51,7 +51,7 @@ const url = appUrl(loopbackUrl(args.url), { ui: 0, gputiming: timed ? 'on' : 'of
 const directory = join(await outputDir(args.out), label);
 await mkdir(directory, { recursive: true });
 
-const before = await hashTree(APP_ROOT);
+const before = await hashTree();
 const browser = await launchBrowser();
 let result;
 let adapter;
@@ -272,7 +272,7 @@ try {
 } finally {
   await browser.close();
 }
-const after = await hashTree(APP_ROOT);
+const after = await hashTree();
 
 const warnings = [...result.problems];
 if (before !== after) warnings.push('The source tree changed during the run; this run is invalid.');
