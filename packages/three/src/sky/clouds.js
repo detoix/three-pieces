@@ -69,6 +69,24 @@ const LIGHT_DETAILED = 2;
 // How far, in shape tiles, the humidity field slides the shape pattern.
 const SHAPE_SLIDE = 0.35;
 
+/** The coverage the weather map is drawn for: at it, local coverage is the
+ *  map's own. */
+export const COVERAGE_REFERENCE = 0.48;
+
+/**
+ * Local coverage for a weather-map value `local` in [0, 1] under the sky's
+ * `coverage` option. Above the reference, coverage is added, which fills the
+ * dry regions until the sky is overcast. Below it, coverage scales, which thins
+ * every region alike, down to a clear sky at 0. An offset there would only
+ * trim the humid regions' edges: the map is saturated over 18% of the world,
+ * so at 0.1 its cores stayed as dense as at the default, and the demo's start
+ * point, at the edge of one, was 85% shaded.
+ */
+export function cloudLocalCoverage(local, coverage) {
+  const scaled = local * Math.min(1, coverage / COVERAGE_REFERENCE);
+  return Math.min(1, Math.max(0, scaled + Math.max(0, coverage - COVERAGE_REFERENCE)));
+}
+
 /** Stable positive root from an eye on the ground to a spherical cloud layer. */
 export function cloudLayerDistance(mu, height) {
   const c = height * (2 * EARTH + height);
@@ -178,7 +196,9 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
       const q = p.add(offset).toVar();
       const w = weatherNode.sample(q.xz.div(24).add(vec2(0.17, 0.43))).level(0).rgb.toVar();
       // Coverage changes the amount of occupied sky, not cloud transparency.
-      const c = w.x.add(amount).sub(0.48).clamp(0, 1).toVar();
+      // `cloudLocalCoverage`, transcribed.
+      const c = w.x.mul(amount.div(COVERAGE_REFERENCE).min(1))
+        .add(amount.sub(COVERAGE_REFERENCE).max(0)).clamp(0, 1).toVar();
       If(c.greaterThan(0.08), () => {
         // The shape volume repeats every 3.6 km, which at 20-50 km lines the
         // horizon with the same puffs. The weather map's broad humidity field

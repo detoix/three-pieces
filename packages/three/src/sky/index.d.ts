@@ -19,7 +19,11 @@ export interface SkyOptions {
   clouds?: boolean;
   /** Construction-time resolution and integration preset. Default balanced. */
   cloudQuality?: CloudQuality;
-  /** Weather coverage parameter in [0, 1], not a literal sky fraction. Default 0.48. */
+  /**
+   * Weather coverage parameter in [0, 1], not a literal sky fraction. Default 0.48, where the
+   * weather map is used as drawn; below it every region thins in proportion, above it dry
+   * regions fill in.
+   */
   cloudCoverage?: number;
   /** Drift speed parameter in m/s, in [0, 100]. Default 12. */
   cloudWindSpeed?: number;

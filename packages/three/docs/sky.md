@@ -61,7 +61,7 @@ Options other than the sun are fixed at construction; make a new instance to cha
 | `eyeHeightKm` | `0.0017` | Fixed atmosphere eye height in `[0, 100)` km; this range is input validity, not an altitude-rendering guarantee |
 | `clouds` | `true` | Boolean; `false` avoids allocating the cloud volume/cache |
 | `cloudQuality` | `'balanced'` | `'low'`, `'balanced'` or `'high'`; current resolution and minimum steps are reported in `clouds.stats` |
-| `cloudCoverage` | `0.48` | Weather parameter in `[0, 1]`; not a promise that this fraction of the image is cloudy |
+| `cloudCoverage` | `0.48` | Weather parameter in `[0, 1]`; not a promise that this fraction of the image is cloudy. At 0.48 the weather map is used as drawn; below, every region thins in proportion, to a clear sky at 0; above, dry regions fill in toward overcast |
 | `cloudWindSpeed` | `12` | Drift parameter in `[0, 100]` m/s; the current fixed wind direction also has a smaller +Z component |
 | `cloudSeed` | `0x43f6a21d` | Unsigned 32-bit integer; deterministic shape and weather textures |
 

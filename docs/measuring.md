@@ -206,6 +206,10 @@ the demo then ran at (0.48): 96-100% of the lawn in the five views that show
 it is shaded, at 0.22-0.28 of its sunlit
 luminance, with at most 1% in a shadow's edge. The start point is under a large
 cloud region at the default seed, so every fixed view looks at shade. This is
-where the demo's clouds are, not a fault; `packages/three/docs/sky-internals.md`
-has the check that the shadow and the sky agree. The lawn hue and coverage
+where the demo's clouds were, not a fault; `packages/three/docs/sky-internals.md`
+has the check that the shadow and the sky agree. At the demo's present
+coverage (0.1, with coverage below the default thinning every region) no lawn
+in the six fixed views is shaded at the start of the clock, and a read-back of
+the shadow map shades 17% of the ground around the start, against 49% at
+0.48. The lawn hue and coverage
 sweeps turn the shadows off, so their numbers above are unchanged by them.

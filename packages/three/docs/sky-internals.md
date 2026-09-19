@@ -341,10 +341,14 @@ with 3 s warmup and 10 s samples:
   there is still no cloud attenuation of the probe. Positions above the cloud
   base, and more than 1.56 km from the observer, are not shaded.
 - **Where the weather puts the observer decides the scene.** The weather map
-  lays out overcast regions several kilometres across. At the demo's seed the
-  start point is on the western edge of one, in the sun's direction, so its
-  opening view is shaded, and the wind carries more of that region over it for
-  the next few minutes.
+  lays out overcast regions several kilometres across, saturated over 18% of
+  the world. At the default coverage the demo's start point is on the western
+  edge of one, in the sun's direction, so its opening view is shaded. Coverage
+  below the default thins every region in proportion (`cloudLocalCoverage`),
+  so at the demo's 0.1 the opening is sunlit and 17% of the ground around it
+  shaded, against 49% at 0.48, read back from the shadow map. As an offset,
+  coverage had left those regions' cores as dense as at the default: at 0.1
+  the opening was still 85% shaded.
 - **Fast wind is not robust.** At 60 m/s cloud edges visibly distort and
   double; the default is 12 m/s.
 - **Coverage and wind cannot change while running.** Options other than the sun

@@ -106,11 +106,14 @@ walk or wind. A steady frame marches nothing, and the lookup costs about
 0.1 ms of a ground frame. `packages/three/docs/sky-internals.md` has the
 design and the numbers.
 
-One consequence for the recordings: at the demo's seed the start point stands
-on the western edge of an overcast region, in the sun's direction, so the
-opening view is shaded, and the wind carries more of that region over it for
-the next few minutes. Where a recording starts -- the start point, the
-heading, the moment, or the seed -- now decides whether it opens in sun.
+One consequence for the recordings: at the sky's default coverage (0.48) the
+demo's start point stands on the western edge of an overcast region, in the
+sun's direction, so its opening view is shaded, and the wind carries more of
+that region over it for minutes. The demo now runs sparser and calmer
+(coverage 0.1, 4 m/s wind), and coverage below the default thins every region
+in proportion instead of only trimming the humid ones. At 0.1 the opening is
+sunlit in all six fixed views and 17% of the ground around the start is
+shaded, against 49% at 0.48: a shadow now passes occasionally.
 
 Experiments considered, not adopted -- each has to earn its cost in a matched
 comparison before it lands:

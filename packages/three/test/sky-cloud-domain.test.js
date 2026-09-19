@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cloudDirection, cloudLayerDistance } from '../src/sky/clouds.js';
+import {
+  COVERAGE_REFERENCE, cloudDirection, cloudLayerDistance, cloudLocalCoverage,
+} from '../src/sky/clouds.js';
+import { createCloudWeatherData } from '../src/sky/cloud-noise.js';
 
 const EARTH_RADIUS_KM = 6360;
 const HEIGHTS_KM = [0.001, 1.35, 2.65, 10];
@@ -73,4 +76,33 @@ test('higher spherical layers always follow lower layers along the same sky ray'
       assert.ok(distances[index] > distances[index - 1]);
     }
   }
+});
+
+test('coverage below the default thins every region, not just the edges of humid ones', () => {
+  // At the reference the weather map is itself; a clear sky at 0; monotonic
+  // in both the option and the map.
+  for (const local of [0, 0.3, 0.72, 1]) {
+    close(cloudLocalCoverage(local, COVERAGE_REFERENCE), local);
+    assert.equal(cloudLocalCoverage(local, 0), 0);
+    let previous = -1;
+    for (let coverage = 0; coverage <= 1.0001; coverage += 0.02) {
+      const value = cloudLocalCoverage(local, coverage);
+      assert.ok(value >= previous - 1e-12, `monotonic in coverage at ${local}`);
+      previous = value;
+    }
+  }
+  assert.equal(cloudLocalCoverage(0, 1), 1 - COVERAGE_REFERENCE, 'above the reference, dry regions fill');
+  assert.equal(cloudLocalCoverage(1, 1), 1);
+
+  // The weather map saturates over a large share of the world. Its densest
+  // cloud must still thin out as coverage drops: the shape's own early-out is
+  // local coverage 0.08, and its threshold is set by what is left above that.
+  const { data } = createCloudWeatherData({});
+  const locals = [];
+  for (let i = 0; i < data.length; i += 4) locals.push(data[i] / 255);
+  const saturated = locals.filter((value) => value > 0.999).length / locals.length;
+  assert.ok(saturated > 0.1, `the map saturates over ${(100 * saturated).toFixed(1)}%`);
+  const densest = (coverage) => Math.max(...locals.map((local) => cloudLocalCoverage(local, coverage)));
+  assert.equal(densest(COVERAGE_REFERENCE), 1);
+  close(densest(0.1), 0.1 / COVERAGE_REFERENCE, 1e-9);
 });
