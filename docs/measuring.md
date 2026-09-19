@@ -111,8 +111,55 @@ earlier building-scene figures, which are no longer the reference.
   a degree and a half on a different framing is not a reason to move it.
 - Sky exposure: the fully fogged band reads 0.6077 against the flat control's
   0.6080 at `skyexposure=7.1`, so the exposure still holds the far band.
-- The 1920x1080 / 60 FPS target is not met on the ground paths.
+- The 1920x1080 / 60 FPS target is not met on the ground paths. The next
+  day the same code held about 59 FPS; see the breakdown below for why a
+  single day's figure is not the answer.
 
 The numbers move with the dials -- blade height and width, tillering, ring
 density, the palette, the haze -- so report what a re-run lands on; do not
 silently change a constant to match an older number.
+
+## Where a ground-view frame goes
+
+Measured 2026-09-19 with `benchmark.mjs --mode timed`, on the same integrated
+laptop GPU at 1920x1080, 3 s warmup and 8-10 s samples, one variant switched
+at a time. The multisampling rows are three alternating trials each; every
+other row is one trial. Numbers are GPU pass time per frame, render plus
+compute, median.
+
+| Variant | Walk | Change |
+| --- | ---: | ---: |
+| Baseline (4x MSAA, balanced clouds) | 15.9-16.1 ms | -- |
+| `?msaa=off` | 11.3-11.4 ms | -4.6 ms |
+| 1440x810 canvas instead of 1920x1080 | 11.5 ms | -4.6 ms |
+| `?tillers=2` instead of 4 | 12.2 ms | -3.9 ms |
+| `?sky=flat` (no atmosphere, no clouds) | 12.8 ms | -3.3 ms |
+| `?underlay=solid` (no PBR lawn surface) | 13.1 ms | -3.0 ms |
+| `?clouds=off` | 13.7 ms | -2.4 ms |
+| `?canopylod=0` | 15.8 ms | -0.3 ms |
+| `?cloudquality=low` | 16.0 ms | -0.2 ms |
+| Blades drawn before the ground | 15.9 ms | 0 |
+
+How to read it:
+
+- **The rows do not add up, and are not meant to.** Take any one piece away
+  and the rest runs faster, because an integrated GPU shares its clock and
+  memory bandwidth across everything in the frame: the same cloud compute
+  pass measures 1.3 ms in a light frame, 2.0 ms in the baseline and 3.3 ms in
+  the hotter run of the day before. Each row is what that one change buys.
+- **Multisampling is the largest single cost**, and it stays on: without it
+  the lawn's blades, a pixel or two wide past a few metres, turn to grain that
+  crawls with the camera. `?msaa=off` is the lever for frame rate.
+- **Most of the rest is proportional to pixels**, which the smaller canvas
+  shows: the lawn surface, the blades' fragments and the multisampled
+  targets all scale with it.
+- **The cloud pass is not bound by its texel count in a ground view.**
+  `cloudquality=low` updates half the texels per frame and buys almost
+  nothing.
+- **The ground's cost is its own texture work, not overdraw.** Drawing the
+  blades first, so that ground hidden behind them is rejected early, changes
+  nothing.
+- **Compare only inside one session.** The same code measured about 44 FPS
+  (GPU median 17.3-18.3 ms) on 2026-09-18 and about 59 FPS (16.0 ms) on
+  2026-09-19. Clock and thermal state move a frame more than most changes
+  do, which is why the rules above ask for alternating trials.

@@ -185,6 +185,15 @@ export function readSceneOptions(search = '', devicePixelRatio = 1) {
       0.5,
       3,
     ),
+    // 4x multisampling. It is the single largest cost in a ground view: on an
+    // integrated laptop GPU at 1920x1080, walking measured 15.9 ms of GPU time
+    // a frame with it and 11.5 without (`docs/measuring.md`). It stays on,
+    // because without it the lawn's blades -- a pixel or two wide past a few
+    // metres -- turn to grain that crawls as the camera moves. `?msaa=off` is
+    // the lever for a machine that cannot hold the frame rate; it trades
+    // smoothness of motion for smoothness of edges, and a recording that needs
+    // both is better made offline.
+    msaa: params.get('msaa') !== 'off',
     // Whether the renderer asks WebGPU for pass timestamps. Off by default:
     // timestamp capture and readback change frame cadence, so this is for a
     // measurement run (`?gputiming=on`) and never for ordinary playback.

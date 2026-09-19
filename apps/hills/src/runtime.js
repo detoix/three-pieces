@@ -43,7 +43,7 @@ export async function startHills({ adapter }) {
   }
 
   const renderer = new THREE.WebGPURenderer({
-    antialias: true,
+    antialias: lawn.msaa,
     powerPreference: 'high-performance',
     trackTimestamp: lawn.gpuTiming,
   });

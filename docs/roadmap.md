@@ -146,14 +146,17 @@ Known limits that this plan does not remove:
 ## 4. The performance target
 
 The target is **1920x1080 at 60 FPS on an integrated laptop GPU**, with
-capacity left for the rest of the scene. On the hills it is **not met**: the
-ground paths (standing, walking, turning) run at about 44 FPS with GPU p95 of
-21-23 ms, of which cloud compute is about 3.3 ms median, while every
-sky-facing path holds 60 FPS. That is one trial per path (see
-[measuring.md](measuring.md) for the figures and their caveats), enough to
-say where the cost is -- the ground half of the frame -- but not how much a
-change would buy. The target is an acceptance goal, not a guarantee of the
-packages.
+capacity left for the rest of the scene. On the hills it is **not reliably
+met**. The ground paths (standing, walking, turning) sit right at the budget:
+about 16 ms of GPU time per frame with a p95 near 17 ms on a cool machine,
+holding about 59 FPS, and about 44 FPS on a day the GPU ran hotter. Every
+sky-facing path holds 60 FPS. The breakdown in [measuring.md](measuring.md)
+says where the ground frame goes: 4x multisampling is the largest single cost
+(4.6 ms), then blade count, the lawn surface's texture work and the clouds.
+`?msaa=off` holds 60 with room to spare at the price of a grainier lawn; a
+recording that needs both a smooth lawn and smooth motion is better rendered
+offline than chased in real time. The target is an acceptance goal, not a
+guarantee of the packages.
 
 Two rules for pursuing it: prefer exact counts (triangles, visible crowns,
 storage bytes) over timing when a claim will be written down, and re-run the

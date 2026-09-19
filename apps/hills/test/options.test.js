@@ -63,6 +63,14 @@ test('GPU timestamps are off unless a measurement asks for them by name', () => 
   }
 });
 
+test('multisampling is on unless explicitly switched off', () => {
+  assert.equal(readSceneOptions('').msaa, true);
+  assert.equal(readSceneOptions('?msaa=off').msaa, false);
+  // Only the word `off` removes it: the lawn's edges depend on it, so a typo
+  // must not quietly drop to the aliased lawn.
+  assert.equal(readSceneOptions('?msaa=0').msaa, true);
+});
+
 test('the posture dials cannot ask for a heading with no direction', () => {
   // `?clumppull=` and `?tillerfan=` are the A/B for how correlated
   // neighbouring blades are. The pull has the same forbidden band the preset
