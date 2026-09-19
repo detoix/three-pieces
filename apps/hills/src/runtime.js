@@ -159,6 +159,8 @@ export async function startHills({ adapter }) {
       heightMap: { heightAt, normalStep: 0.25, packingMinimum, packingRange },
       groundBounds: { minimum: heightBounds.minimum, maximum: heightBounds.maximum },
       surface,
+      // Nothing here casts a shadow: the hills are too gentle to shadow
+      // themselves at the default sun, so there is no shadow map to receive.
       shadows: false,
       coarseCulling: lawn.coarseCulling,
       cullHysteresis: lawn.cullHysteresis,

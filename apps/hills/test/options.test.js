@@ -53,6 +53,16 @@ test('the lighting A/B is reachable and defaults to on', () => {
   assert.equal(readSceneOptions('?skylights=0').skyLights, true);
 });
 
+test('GPU timestamps are off unless a measurement asks for them by name', () => {
+  // Timestamp capture and readback change cadence, so ordinary playback must
+  // never pay for them: only the exact word `on` turns them on.
+  assert.equal(readSceneOptions('').gpuTiming, false);
+  assert.equal(readSceneOptions('?gputiming=on').gpuTiming, true);
+  for (const value of ['1', 'true', 'yes', 'ON', '']) {
+    assert.equal(readSceneOptions(`?gputiming=${value}`).gpuTiming, false, value);
+  }
+});
+
 test('the posture dials cannot ask for a heading with no direction', () => {
   // `?clumppull=` and `?tillerfan=` are the A/B for how correlated
   // neighbouring blades are. The pull has the same forbidden band the preset

@@ -148,7 +148,6 @@ export function readSceneOptions(search = '', devicePixelRatio = 1) {
     // blade from before the coverage sweep.
     bladeHeight: number('bladeheight', 0.65, 0.3, 4),
     bladeWidth: number('bladewidth', 0.65, 0.3, 4),
-    shadows: params.get('shadows') !== 'off',
     underlay: normalizeLawnUnderlay(params.get('underlay')),
     // `?sky=flat` is the A/B: the `#b8c9b5` clear colour and the matching
     // linear fog the demo had before the sky, with no atmosphere baked at all.
