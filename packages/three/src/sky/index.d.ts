@@ -38,12 +38,17 @@ export interface CloudStats {
   readonly quality: CloudQuality;
   readonly width: number;
   readonly height: number;
-  /** Minimum primary ray-march steps; adaptive traversal may use more. */
+  /** Minimum coarse ray-march steps across the layer; longer rays use more. */
   readonly steps: number;
-  /** Maximum primary ray-march steps, currently 256. */
+  /** Maximum coarse ray-march steps across the layer, currently 256. */
   readonly maxSteps: number;
-  /** Target primary sample spacing in km, currently 0.05 (50 m). */
+  /** Target coarse sample spacing in km, currently 0.05 (50 m). */
   readonly targetStepKm: number;
+  /** Fine step as a fraction of the coarse one, used from a cloud boundary
+   *  until the ray is deep inside, currently 0.25. */
+  readonly fineStepFraction: number;
+  /** Cap on coarse plus fine samples per ray, currently 320. */
+  readonly maxIterations: number;
   readonly slices: number;
   readonly coverage: number;
   readonly windSpeed: number;

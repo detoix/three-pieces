@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { createCloudNoiseData, createCloudWeatherData } from './cloud-noise.js';
+import { CLOUD_LIGHTING } from './cloud-lighting.js';
 
 const { Fn, If, Loop, Break, float, uint, vec2, vec3, vec4, uvec2,
   uniform, instanceIndex, texture, texture3D, storageTexture, mix, atan,
@@ -8,15 +9,62 @@ const { Fn, If, Loop, Break, float, uint, vec2, vec3, vec4, uvec2,
 // Kilometres throughout the volume. This is a ground-view renderer: the cache
 // is angular, independent of the camera, and is not a cloud fly-through volume.
 export const CLOUD_PRESETS = Object.freeze({
-  low: Object.freeze({ width: 768, height: 256, steps: 40, slices: 128 }),
-  balanced: Object.freeze({ width: 1536, height: 512, steps: 72, slices: 256 }),
-  high: Object.freeze({ width: 2048, height: 768, steps: 96, slices: 384 }),
+  low: Object.freeze({ width: 768, height: 256, steps: 32, slices: 128 }),
+  balanced: Object.freeze({ width: 1536, height: 512, steps: 48, slices: 256 }),
+  high: Object.freeze({ width: 2048, height: 768, steps: 64, slices: 384 }),
 });
 const EARTH = 6360;
 /** How far a still sky's observer may move before its snapshots are remarched. */
 export const OBSERVER_REFRESH_KM = 0.1;
 const BASE = 1.35;
 const TOP = 2.65;
+// The cloud body. Real cumulus have a sharp boundary and a nearly uniform
+// inside, so density rises steeply over the first `EDGE` of the shape field and
+// only slowly after it; `EXTINCTION` is per kilometre per unit density. The
+// edge is never sharper than the cache can hold: a boundary narrower than one
+// texel is point-sampled into a staircase, so it widens with the sample's
+// footprint, at `EDGE_PER_KM` shape units per kilometre of it.
+const EDGE = 0.12;
+const EDGE_PER_KM = 30;
+// ...but never so wide that a distant cloud never reaches its body: past this
+// the edge is the whole cloud, it thins out, and every ray through it runs on.
+const EDGE_MAX = 1;
+const DENSITY_BASE = 3;
+const DENSITY_SLOPE = 2;
+const EXTINCTION = 14;
+// What a long sun segment reads instead: the smooth shape, not the sharp body,
+// because a few hundred metres of path average over a cloud and its gaps.
+const SMOOTH_DENSITY = 3;
+// The primary march. Coarse steps cross empty sky; a coarse step that lands in
+// cloud backs up and walks the interval it jumped at a quarter of the step, so
+// the boundary is found to a quarter step instead of banding at a whole one.
+// Fine steps continue until the ray has been out of cloud for `EXIT_RUN`
+// samples, or is deep enough that what lies behind barely shows.
+const FINE_FRACTION = 0.25;
+const DEEP_TRANSMITTANCE = 0.3;
+const EXIT_RUN = 6;
+const MAX_ITERATIONS = 320;
+// Refinement is skipped only where one texel spans more than two coarse
+// steps, where the filtered edge is wider than the step anyway. It is not
+// skipped merely because a texel is wider than a step: along the horizon a
+// dense body sampled at whole steps bands from one cache row to the next, and
+// the band of distant clouds came out striped.
+const REFINE_RATIO = 0.5;
+// A ray stops once what lies behind would show through at under half a
+// percent; the last fraction of a cloud's depth changes nothing visible.
+const OPAQUE = 0.005;
+// Sun optical depth is reused across this many occupied samples: two coarse
+// ones, or eight fine ones, which together span about the same distance.
+const LIGHT_REUSE_COARSE = 2;
+const LIGHT_REUSE_FINE = 8;
+// Sun samples: six, at the midpoints of segments growing 2.1x from 15 m, which
+// reaches about 0.6 km. The first two read the full body with erosion, the
+// rest the smooth shape.
+const LIGHT_FIRST_KM = 0.015;
+const LIGHT_GROWTH = 2.1;
+const LIGHT_DETAILED = 2;
+// How far, in shape tiles, the humidity field slides the shape pattern.
+const SHAPE_SLIDE = 0.35;
 
 /** Stable positive root from an eye on the ground to a spherical cloud layer. */
 export function cloudLayerDistance(mu, height) {
@@ -122,18 +170,31 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
       const drift = vec3(snapshotTime.mul(windSpeed / 1000), 0, snapshotTime.mul(windSpeed / 1000 * 0.32));
       // Curvature above is the observer's; the clouds themselves are world-fixed.
       const q = p.add(drift).add(vec3(snapshotOrigin.x, 0, snapshotOrigin.y)).toVar();
-      const w = weatherNode.sample(q.xz.div(24).add(vec2(0.17, 0.43))).level(0).rg.toVar();
+      const w = weatherNode.sample(q.xz.div(24).add(vec2(0.17, 0.43))).level(0).rgb.toVar();
       // Coverage changes the amount of occupied sky, not cloud transparency.
       const c = w.x.add(amount).sub(0.48).clamp(0, 1).toVar();
       If(c.greaterThan(0.08), () => {
-        const n = shapeNode.sample(q.div(3.6)).level(0).toVar();
+        // The shape volume repeats every 3.6 km, which at 20-50 km lines the
+        // horizon with the same puffs. The weather map's broad humidity field
+        // (B) slides the pattern by up to a third of a tile across ~8 km cells,
+        // so neighbouring tiles no longer match -- at a stretch of under a
+        // third, and at no cost: the weather texel is already fetched.
+        const slide = vec3(w.z, 0, w.z.mul(0.7)).mul(SHAPE_SLIDE);
+        const n = shapeNode.sample(q.div(3.6).add(slide)).level(0).toVar();
         const profileHeight = altitude.sub(BASE).div(mix(float(0.75), float(TOP - BASE), w.y)).toVar();
         const baseProfile = profileHeight.smoothstep(0, 0.065).mul(profileHeight.smoothstep(0.58, 1).oneMinus()).toVar();
-        const threshold = c.mul(0.52).oneMinus().mul(0.76).toVar();
+        // 0.74, down from 0.76, holds the page's cloud cover now that thin
+        // coverage shrinks clouds instead of fading them (measure-clouds.mjs).
+        const threshold = c.mul(0.52).oneMinus().mul(0.74).toVar();
         const billows = n.r.add(n.b.sub(0.5).mul(0.8)).add(n.a.sub(0.5).mul(0.35)).toVar();
-        const shape = billows.mul(baseProfile).sub(threshold).div(threshold.oneMinus().max(0.01)).max(0).toVar();
+        // Thinning coverage shrinks a cloud rather than fading it: scaling the
+        // shape before the threshold keeps its boundary crisp, and the shape
+        // still reaches zero at the 0.08 early-out, so billows cannot be cut
+        // into vertical walls along weather contours.
+        const feather = c.smoothstep(0.08, 0.15);
+        const shape = billows.mul(baseProfile).mul(feather).sub(threshold)
+          .div(threshold.oneMinus().max(0.01)).max(0).toVar();
         If(shape.greaterThan(0), () => {
-          const erosion = float(0).toVar();
           If(detail.greaterThan(0), () => {
             // Stop unresolved octaves from sparkling at distant silhouettes.
             // Filter toward their measured mean, preserving mean erosion rather
@@ -141,11 +202,14 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
             const fineRaw = shapeNode.sample(q.div(0.55)).level(0).gba;
             const unresolved = vec3(footprint).div(vec3(0.55 / 4, 0.55 / 8, 0.55 / 16)).smoothstep(0.4, 1.2);
             const fine = mix(fineRaw, vec3(...noiseMeans), unresolved);
-            erosion.assign(fine.dot(vec3(0.65, 0.25, 0.1)).oneMinus().mul(0.5).sub(0.08).max(0).mul(mix(float(1), float(0.35), shape.clamp(0, 1))));
+            const erosion = fine.dot(vec3(0.65, 0.25, 0.1)).oneMinus().mul(0.5).sub(0.08).max(0)
+              .mul(mix(float(1), float(0.35), shape.clamp(0, 1)));
+            const eroded = shape.sub(erosion).max(0);
+            const edge = footprint.mul(EDGE_PER_KM).clamp(EDGE, EDGE_MAX);
+            density.assign(eroded.smoothstep(0, edge).mul(eroded.mul(DENSITY_SLOPE).add(DENSITY_BASE)));
+          }).Else(() => {
+            density.assign(shape.mul(SMOOTH_DENSITY));
           });
-          // Fade density to zero before the weather early-out; otherwise dense
-          // billows turn XZ weather contours into vertical cloud walls.
-          density.assign(shape.sub(erosion).max(0).mul(2.4).mul(c.smoothstep(0.08, 0.25)));
         });
       });
     });
@@ -168,61 +232,108 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
     If(end.greaterThan(start).and(amount.greaterThan(0)), () => {
       // Invariant along the ray: one atmospheric lookup, not one per step.
       const atmosphereColor = skyRadianceNode(direction).toVar();
-      const sampleCount = end.sub(start).div(0.05).ceil().max(steps).min(256).toVar();
-      const step = end.sub(start).div(sampleCount).toVar();
+      // Coarse steps target 50 m, at least the preset's minimum count and at
+      // most 256 across the layer; fine steps are a quarter of that.
+      const coarseCount = end.sub(start).div(0.05).ceil().max(steps).min(256);
+      const coarse = end.sub(start).div(coarseCount).toVar();
+      const fine = coarse.mul(FINE_FRACTION).toVar();
       const mu = direction.dot(sunDirection).toVar();
-      const phase = phaseHG(mu, 0.65).mul(0.8).add(phaseHG(mu, -0.2).mul(0.2)).toVar();
-      // Midpoint quadrature avoids persistent spatial stippling. The longer
-      // grazing rays receive extra samples, bounded to 256 for predictable cost.
-      const distance = start.add(step.mul(0.5)).toVar();
+      // Everything about the lighting that depends only on the ray, hoisted.
+      // `cloud-lighting.js` is the scalar contract these are transcribed from.
+      const L = CLOUD_LIGHTING;
+      const phase = phaseHG(mu, L.forwardG).mul(L.forwardWeight)
+        .add(phaseHG(mu, L.backG).mul(1 - L.forwardWeight)).toVar();
+      const multiPhase = phaseHG(mu, L.msG).mul(0.5).add(0.5 / (4 * Math.PI)).mul(L.msWeight).toVar();
+      const powderReach = mu.oneMinus().mul(0.5 * L.powderStrength).toVar();
+      const sunUp = sunDirection.y.smoothstep(-0.08, 0.08).toVar();
+      const groundBounce = vec3(...L.groundAlbedo)
+        .mul(sunColor.mul(sunDirection.y.max(0)).add(skyColor))
+        .mul(L.groundShadow / Math.PI).toVar();
+      // Midpoint quadrature: no persistent spatial jitter to stipple the cache.
+      const distance = start.add(coarse.mul(0.5)).toVar();
       const elevation = direction.y.asin();
       const angularTexel = elevation.cos().mul(2 * Math.PI / width)
         .max(elevation.div(Math.PI / 2).sqrt().mul(Math.PI / height));
       const opticalDepth = float(0).toVar();
-      const lightingAge = uint(2).toVar();
-      Loop(256, ({ i }) => {
-        If(i.greaterThanEqual(sampleCount), () => { Break(); });
-        If(transmittance.lessThan(0.001), () => { transmittance.assign(0); Break(); });
+      // 99 means "refresh on the next occupied sample, whatever the depth".
+      const lightingAge = uint(99).toVar();
+      const fineMode = uint(0).toVar();
+      const emptyRun = uint(0).toVar();
+      Loop(MAX_ITERATIONS, () => {
+        If(distance.greaterThanEqual(end), () => { Break(); });
+        If(transmittance.lessThan(OPAQUE), () => { transmittance.assign(0); Break(); });
+        const stepLength = fineMode.equal(1).select(fine, coarse).toVar();
         const p = direction.mul(distance).toVar();
-        const footprint = distance.mul(angularTexel).max(step).toVar();
+        const lateral = distance.mul(angularTexel);
+        const footprint = lateral.max(stepLength).toVar();
         const density = densityAt(p, float(1), footprint).toVar();
-        If(density.lessThanEqual(0.001), () => { lightingAge.assign(2); });
-        If(density.greaterThan(0.001), () => {
-          // Six exponentially spaced sun samples. Cheap shape-only density
-          // preserves broad self-shadowing; only the first two use erosion.
-          // Reuse broad transport across two occupied view samples. Density and
-          // transmittance still integrate every sample; entering cloud refreshes
-          // immediately so clear gaps cannot inherit another cloud's lighting.
-          If(lightingAge.greaterThanEqual(2), () => {
-            opticalDepth.assign(0);
-            const lightDistance = float(0.04).toVar();
-          const previousDistance = float(0).toVar();
-          Loop(6, ({ i }) => {
-            opticalDepth.addAssign(densityAt(p.add(sunDirection.mul(lightDistance)), i.lessThan(2).select(float(1), float(0)), lightDistance.sub(previousDistance)).mul(lightDistance.sub(previousDistance)).mul(14));
-            previousDistance.assign(lightDistance);
-            lightDistance.mulAssign(1.85);
+        const refine = coarse.greaterThan(lateral.mul(REFINE_RATIO));
+        If(fineMode.equal(0).and(refine).and(density.greaterThan(0.001))
+          .and(transmittance.greaterThan(DEEP_TRANSMITTANCE)), () => {
+          // A coarse step has just landed in cloud, so the boundary lies in the
+          // interval it jumped: back up and walk that interval finely.
+          distance.subAssign(coarse.sub(fine.mul(0.5)));
+          fineMode.assign(1);
+          emptyRun.assign(0);
+          lightingAge.assign(99);
+        }).Else(() => {
+          If(density.lessThanEqual(0.001), () => {
+            lightingAge.assign(99);
+            emptyRun.addAssign(1);
+          }).Else(() => {
+            emptyRun.assign(0);
+            // Six sun samples, the near two through the full body. Their
+            // optical depth is reused across a few occupied view samples and
+            // not refreshed at all once the ray is deep, where what it lights
+            // barely shows; entering cloud always refreshes it, so a gap
+            // cannot inherit another cloud's light.
+            const reuse = fineMode.equal(1).select(uint(LIGHT_REUSE_FINE), uint(LIGHT_REUSE_COARSE));
+            If(lightingAge.greaterThanEqual(reuse)
+              .and(transmittance.greaterThan(DEEP_TRANSMITTANCE).or(lightingAge.greaterThanEqual(99))), () => {
+              opticalDepth.assign(0);
+              const lightDistance = float(LIGHT_FIRST_KM).toVar();
+              const previousDistance = float(0).toVar();
+              Loop(6, ({ i }) => {
+                const segment = lightDistance.sub(previousDistance);
+                const middle = lightDistance.add(previousDistance).mul(0.5);
+                opticalDepth.addAssign(densityAt(p.add(sunDirection.mul(middle)),
+                  i.lessThan(LIGHT_DETAILED).select(float(1), float(0)), segment)
+                  .mul(segment).mul(EXTINCTION));
+                previousDistance.assign(lightDistance);
+                lightDistance.mulAssign(LIGHT_GROWTH);
+              });
+              lightingAge.assign(0);
+            });
+            lightingAge.addAssign(1);
+            // Single scattering through the optical depth to the sun, plus the
+            // light that has scattered more than once and diffuses through
+            // rather than dying off like the beam. Seen from the sun's side, a
+            // thin fringe has had few scattering events and is darker (powder).
+            const beer = opticalDepth.negate().exp();
+            const diffuse = opticalDepth.mul(L.msFalloff).add(1).reciprocal();
+            const powder = density.mul(-L.powder).exp().oneMinus();
+            const darkening = powder.sub(1).mul(powderReach).add(1);
+            const scattered = beer.mul(phase).add(diffuse.mul(multiPhase)).mul(darkening);
+            // Tops see the sky and bases the sunlit lawn below.
+            const h = p.y.add(p.xz.dot(p.xz).div(2 * EARTH)).sub(BASE).div(TOP - BASE).clamp(0, 1);
+            const ambient = skyColor.mul(mix(float(L.skyAmbientBase), float(L.skyAmbientTop), h))
+              .add(groundBounce.mul(h.oneMinus()));
+            const source = sunColor.mul(scattered).mul(sunUp).add(ambient).mul(exposure);
+            const segmentT = density.mul(stepLength).mul(-EXTINCTION).exp().toVar();
+            // Atmosphere between eye and cloud: avoid an opaque white horizon.
+            const aerial = distance.mul(-0.027).exp().toVar();
+            const fogged = source.mul(aerial).add(atmosphereColor.mul(aerial.oneMinus()));
+            weightedDistance.addAssign(transmittance.mul(segmentT.oneMinus()).mul(distance));
+            radiance.addAssign(transmittance.mul(segmentT.oneMinus()).mul(fogged));
+            transmittance.mulAssign(segmentT);
           });
-          lightingAge.assign(0);
+          // Back to coarse steps once out of cloud for a while, or deep enough
+          // that nothing behind will show through.
+          If(fineMode.equal(1).and(emptyRun.greaterThanEqual(EXIT_RUN).or(transmittance.lessThan(DEEP_TRANSMITTANCE))), () => {
+            fineMode.assign(0);
           });
-          lightingAge.addAssign(1);
-          const beer = opticalDepth.negate().exp().toVar();
-          // Low-order multiple scattering approximation broadens light in the
-          // interior while leaving the direct forward lobe at the edges.
-          const direct = beer.mul(phase)
-            .add(opticalDepth.mul(-0.28).exp().mul(0.05))
-            .add(opticalDepth.mul(-0.07).exp().mul(0.065)).toVar();
-          const h = p.y.add(p.xz.dot(p.xz).div(2 * EARTH)).sub(BASE).div(TOP - BASE).clamp(0, 1);
-          const ambient = skyColor.mul(mix(float(0.15), float(0.75), h)).add(vec3(0.004));
-          const source = sunColor.mul(direct).mul(sunDirection.y.smoothstep(-0.08, 0.08)).add(ambient).mul(exposure);
-          const segmentT = density.mul(step).mul(-14).exp().toVar();
-          // Atmosphere between eye and cloud: avoid an opaque white horizon.
-          const aerial = distance.mul(-0.027).exp().toVar();
-          const fogged = source.mul(aerial).add(atmosphereColor.mul(aerial.oneMinus()));
-          weightedDistance.addAssign(transmittance.mul(segmentT.oneMinus()).mul(distance));
-          radiance.addAssign(transmittance.mul(segmentT.oneMinus()).mul(fogged));
-          transmittance.mulAssign(segmentT);
+          distance.addAssign(stepLength);
         });
-        distance.addAssign(step);
       });
     });
     const depth = transmittance.lessThan(0.9999).select(
@@ -285,7 +396,7 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
   const snapshotOrigins = [[0, 0], [0, 0], [0, 0]];
   const observerKm = [0, 0];
   const stats = { quality, width, height, steps, slices, coverage, windSpeed,
-    maxSteps: 256, targetStepKm: 0.05,
+    maxSteps: 256, targetStepKm: 0.05, fineStepFraction: FINE_FRACTION, maxIterations: MAX_ITERATIONS,
     computeNodeIds: [initializePass.id, updatePass.id],
     bytes: width * height * 8 * 6 + noiseData.data.byteLength + weatherData.data.byteLength,
     generation: 0, updatedTexels: 0, cacheLatencySeconds: cycleDuration,

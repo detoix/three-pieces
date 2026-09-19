@@ -70,36 +70,107 @@ Density comes from deterministic periodic RGBA8 noise: shape and erosion
 volumes, with a 2D weather map controlling coverage and the vertical profile.
 Shape repeats over 3.6 km and boundary erosion over 0.55 km. Coverage is a
 weather parameter, not a promise that that fraction of the image is cloudy and
-not an opacity multiplier. A smooth density feather over local weather coverage
-0.08-0.25 makes density approach zero at clear-region boundaries; without it
-the early-out can clip dense billows into vertical walls. The feather applies
-during both view and shadow integration and changes edge optical depth, not
-final compositing opacity.
+not an opacity multiplier.
 
-Each ray uses fixed midpoint quadrature. The primary count is
-`min(256, max(presetMinimum, ceil(rayLengthKm / 0.05)))`: about 50 m target
-spacing, finer on short rays, possibly wider at the 256-sample cap, with early
-opacity termination performing fewer samples. Midpoints replace persistent
-spatial jitter to reduce stippling. This adapts the count to ray length; it is
-not occupancy-driven empty-space skipping or signed-distance traversal.
+**The body has an edge.** Real cumulus have a sharp boundary and a nearly
+uniform inside, so density rises steeply over the first `EDGE` (0.12) of the
+shape field and only slowly after it, to an extinction of about 40-70 per
+kilometre -- a mean free path of 15-25 m. The previous field ramped up linearly
+from nothing, to a quarter of that, and the result was what you would expect
+of a boundary spread over a hundred metres: clouds that looked out of focus at
+every distance, their shading averaged away over the depth the eye was
+looking through.
 
-A sample footprint is estimated from the larger of the primary step length and
-the angular-cache texel extent at the sample distance. Unresolved fine erosion
+**The edge is never sharper than the cache can hold.** A boundary narrower
+than one cache texel is point-sampled into a staircase, and the texel-sized
+steps showed at 4-5 pixels a side at 1080p. The edge widens with the sample's
+angular footprint, at `EDGE_PER_KM` (30) shape units per kilometre of it, and
+stops widening at `EDGE_MAX` (1), past which a distant cloud would be all edge,
+never reach its body, and let every ray through it run on. This is the same
+idea as the fine-erosion filtering below: never ask the cache for detail
+narrower than it has texels for.
+
+**Thin coverage shrinks a cloud rather than fading it.** The weather feather
+scales the shape before its threshold, over local coverage 0.08-0.15, so a
+cloud near a clear region keeps a crisp boundary and gets smaller; it still
+reaches zero at the 0.08 early-out, so billows cannot be cut into vertical
+walls along weather contours. (It used to scale density after the threshold,
+which faded clouds instead.)
+
+**The pattern slides.** The weather map's broad humidity channel shifts the
+shape lookup by up to 0.35 of a tile across its roughly 8 km cells, so the
+3.6 km repeat no longer lines the horizon with the same puffs. The stretch
+this introduces is under a third, and it is free: the weather texel is already
+fetched.
+
+A sample footprint is estimated from the larger of the step length and the
+angular-cache texel extent at the sample distance. Unresolved fine erosion
 octaves blend toward their measured texture means, which keeps the mean noise
 input closer than removing erosion does -- but nonlinear thresholding means
 density and coverage can still change. Broad shape noise is always sampled at
 its base level.
 
-Lighting uses six exponentially spaced sun-density samples, with erosion in the
-first two and cheaper shape-only density after. Their accumulated optical depth
-is reused for two consecutive occupied primary samples; empty space forces a
-refresh on the next hit. Density, Beer transmittance and radiance still
-integrate every primary sample. The sun march reaches about 0.87 km and does
-not provide complete long-range inter-cloud shadows. A dual Henyey-Greenstein
-phase, a low-order multiple-scattering approximation, a height-dependent
-ambient term and exponential cloud aerial haze provide the visible lighting.
-These are rendering approximations, not an energy-validated scattering model or
-a meteorological simulation.
+**The march is coarse in clear sky and fine at a boundary.** Coarse steps
+target 50 m, at least the preset's minimum count and at most 256 across the
+layer, at midpoints so no persistent jitter stipples the cache. A body with an
+edge 15-25 m deep would band at a 50 m step, so when a coarse step lands in
+cloud the ray backs up over the interval it jumped and walks it at a quarter
+of the step, locating the boundary to a quarter step. Fine steps continue
+until the ray has been out of cloud for six samples, or is deep enough
+(transmittance under 0.3) that what lies behind barely shows; then it returns
+to coarse steps. The ray stops at transmittance 0.005, and 320 samples is the
+hard cap on coarse and fine together. This is the coarse/fine pattern with a
+step back on a hit (Loboda et al. §3.2); like the coarse march before it, it
+does not skip a whole coarse step it has not sampled, so it is no less
+conservative than a plain march at the coarse step.
+
+**Lighting** uses six sun samples, at the midpoints of segments growing 2.1x
+from 15 m, which reaches about 0.6 km. The first two read the full body with
+erosion; the other four read a smooth density (the shape field, not the sharp
+body), because a segment a few hundred metres long averages over a cloud and
+its gaps, and a single point there used to decide the shading of a whole patch
+-- the blue-grey blotches. The accumulated optical depth is reused across two
+coarse or eight fine occupied samples, is not refreshed at all once the ray is
+deep, and is always refreshed on entering cloud, so a gap cannot inherit
+another cloud's light.
+
+How a sample is then lit is `cloud-lighting.js`, a scalar contract the shader
+transcribes term for term and `test/sky-cloud-lighting.test.js` holds:
+
+- **Single scattering**: the beam through the optical depth to the sun, under
+  a dual Henyey-Greenstein phase (g 0.65 and -0.2, weighted 0.8 / 0.2) that
+  keeps the silver lining toward the sun.
+- **Multiple scattering** diffuses rather than dying off like the beam:
+  `msWeight / (4 pi)`, isotropic, falling as `1 / (1 + 0.4 tau)`. It is what
+  keeps a shaded side grey; an exponential in the optical depth handed it to
+  the blue sky ambient instead.
+- **Powder**: seen from the sun's side, a thin fringe has had few scattering
+  events and is darker than the body behind it, which draws the creases
+  between billows. Toward the sun no darkening applies.
+- **Ambient**: tops see the sky (0.2 of its irradiance at the base of the
+  layer, 0.8 at the top), bases see the sunlit lawn below -- the atmosphere's
+  own ground albedo under the sun and sky, cut to a quarter for the cloud
+  field's shadow on it.
+- **Exponential cloud aerial haze** blends distant clouds toward the sky
+  behind them, as before.
+
+These are rendering approximations tuned against the image, not an
+energy-validated scattering model or a meteorological simulation. The tuning
+was held to the page's previous character with
+`apps/hills/scripts/measure-clouds.mjs`: across the six fixed views, cloud
+cover within a point of what it was in five of them (the humidity slide moved
+clouds out of the sixth, 22.5% to 18.1%), the same luma spread -- 0.7-0.9
+from the 10th to the 90th percentile of cloud pixels -- and the shaded tenth
+of the cloud a greyer blue, hue 205 against 209-217.
+
+**What it costs.** The same as the soft clouds it replaced: over three
+alternating GPU-timed trials each at 1920x1080 on an integrated laptop GPU,
+the cloud compute measured 1.32-1.34 ms a frame looking at the sky, old and
+new alike, and the walking and turning ground frames were indistinguishable.
+The two things that made that true, found the hard way: refining only where
+it pays is not enough on its own -- a distant cloud filtered to its texel
+width never reached its body, and rays crawled through it lit at every step,
+which cost 2.5 times as much -- and the deep samples do not need fresh light.
 
 ## The angular cache, motion and memory
 
@@ -109,13 +180,13 @@ are allocated. Two complete states are displayed while the third is filled in
 interleaved slices across the hemisphere. Periodic azimuth and quadratic
 elevation mapping allocate more latitude samples near the horizon.
 
-| Preset | Dimensions | Minimum primary samples | Update slices | Texels updated/frame | Cycle at 60 updates/s | Six cache maps |
+| Preset | Dimensions | Minimum coarse samples | Update slices | Texels updated/frame | Cycle at 60 updates/s | Six cache maps |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| low | 768x256 | 40 | 128 | 1,536 | 2.13 s | 9 MiB |
-| balanced | 1536x512 | 72 | 256 | 3,072 | 4.27 s | 36 MiB |
-| high | 2048x768 | 96 | 384 | 4,096 | 6.40 s | 72 MiB |
+| low | 768x256 | 32 | 128 | 1,536 | 2.13 s | 9 MiB |
+| balanced | 1536x512 | 48 | 256 | 3,072 | 4.27 s | 36 MiB |
+| high | 2048x768 | 64 | 384 | 4,096 | 6.40 s | 72 MiB |
 
-All presets share the 256-sample upper bound. Add 1 MiB for the 64^3 RGBA8
+All presets share the 256 coarse-sample upper bound, and a cap of 320 coarse and fine samples together. Add 1 MiB for the 64^3 RGBA8
 noise and 64 KiB for weather, plus the atmosphere tables. These are calculated
 texture sizes and exclude driver allocations, pipelines, CPU copies and
 probe/readback storage. Static clouds still allocate the resources and
@@ -171,15 +242,23 @@ change. Cloud attenuation of the probe is not implemented.
 
 ## Known limits
 
-- **Softness.** Edges of large clouds blur over tens of pixels at mid
-  elevations. Most of that is the density ramp in `densityAt`: a linear ramp
-  from threshold then x2.4 with x14/km extinction, so the boundary spans
-  roughly 50-100 m. The cache resolution adds a few pixels per texel.
-- **Dirty interiors.** In `march()`, once optical depth grows, blue sky ambient
-  dominates because multiple scattering is under-weighted; large clouds can
-  read blue-grey inside.
-- **A repeating band at the horizon.** Shape noise repeats every 3.6 km
-  (`q.div(3.6)`), so at 25-50 km the same puffs tile along the band.
+- **Edge crispness is capped by the cache, most visibly near the zenith.**
+  The body's edge is filtered to one texel, so a cloud is exactly as crisp as
+  the 1536x512 cache allows at `balanced`: about 4-5 pixels a texel at 1080p
+  over most of the sky. Near the zenith the quadratic elevation mapping puts
+  rows 0.3 degrees apart while the columns converge, so texels there are about
+  5 pixels by 1-2, and a crisp edge shows their steps. Ground-level framings
+  rarely look there; `high` narrows it.
+- **The far field is a field of small puffs.** At 25-50 km a cloud's billows
+  are a few pixels high, so the band along the horizon reads as texture rather
+  than as clouds. The humidity slide keeps neighbouring 3.6 km tiles from
+  matching, but the scale of the shape noise is still the scale of the
+  horizon's texture.
+- **The lighting is tuned, not validated.** The multiple-scattering falloff,
+  powder and ground bounce were chosen against the rendered image and the
+  previous page's luma and cover, not derived. The sun march reaches about
+  0.6 km and past its first two samples (about 30 m) it reads a smoothed
+  density, so there are no long-range shadows cast by one cloud on another.
 - **The ground does not react to clouds.** There are no cloud shadows and no
   cloud attenuation of the lighting probe. The planned shape of the fix is
   recorded in [`docs/roadmap.md`](../../../docs/roadmap.md).
@@ -207,7 +286,7 @@ obvious next experiments, and `docs/roadmap.md` lists them as such.
 | [Hillaire, *A Scalable and Production Ready Sky and Atmosphere Rendering Technique*, EGSR 2020](https://sebh.github.io/publications/egsr2020.pdf), §§5-7, and the [author's reference implementation](https://github.com/sebh/UnrealEngineSkyAtmosphere) | The transmittance, multiple-scattering and sky-view tables; the horizon-concentrated sky-view mapping; the separately composited solar disk; the isotropy assumption after the second scattering event. | The aerial-perspective volume. The fog here is a linear distance ramp coloured by the sky-view table. |
 | [Åsberg, *Real-time Rendering of Dynamic Baked Clouds*, KTH 2024](https://www.diva-portal.org/smash/get/diva2%3A1895803/FULLTEXT01.pdf), §§3.6, 4.2, 5.1 | The hemisphere radiance/transmittance cache, partial updates, and interpolation between two completed states while a third is filled. | Its square-to-disk mapping, which favours the zenith; this cache's quadratic elevation mapping favours the horizon instead. The source's own limits on camera translation, cloud speed and response to a changing sun apply here too, as does its fast-motion ghosting. |
 | [Schneider, Guerrilla, *Nubis³*, 2023](https://www.guerrilla-games.com/read/nubis-cubed) | The split between a detailed near light sample and cheaper far ones (here: erosion in the first two of six sun samples, shape-only after), and fading detail noise with distance (here: unresolved erosion octaves fade to their measured means). Both are adaptations. | Voxel cloud profiles, conservative signed-distance traversal, the separately cached far-light volume, and static jitter for distant sampling -- this march uses fixed midpoints instead. |
-| [Loboda et al., *Real-time volumetric cloud rendering for games and simulations*, 2025](https://lgm.fri.uni-lj.si/wp-content/uploads/2025/10/250771715.pdf), §§3-4 | Weather-controlled coverage and height profile; broad shape evaluated before detail erosion, which only runs where shape is non-zero; an ambient term that is explicitly a non-physical approximation. | Coarse/fine marching that steps back on a hit (§3.2). |
+| [Loboda et al., *Real-time volumetric cloud rendering for games and simulations*, 2025](https://lgm.fri.uni-lj.si/wp-content/uploads/2025/10/250771715.pdf), §§3-4 | Weather-controlled coverage and height profile; broad shape evaluated before detail erosion, which only runs where shape is non-zero; an ambient term that is explicitly a non-physical approximation; coarse/fine marching that steps back on a hit (§3.2), as the march section above describes. | Its occupancy data for skipping empty space: this march never skips a coarse step it has not sampled. |
 | [Muth, *Real-Time Volumetric Rendering of Meteorological Cloud Data*, TU Wien, 2026](https://www.cg.tuwien.ac.at/research/publications/2026/muth-2026-clouds/), §§3.4, 4.2 | Transmittance-weighted depth, used here to warp a hemispherical cache rather than to reconstruct a screen-space history; a sample footprint derived from the step and the texel extent to decide which noise is resolvable. | Half-resolution screen-space integration, temporal reprojection with variance clipping. Its ghosting and convergence tradeoffs are why this renderer keeps no screen-space history. |
 | [Mueller, *Smolder*, SIGGRAPH 2026 course](https://advances.realtimerendering.com/s2026/index.html) | The idea of lighting at a lower frequency than density integration (here: six sun samples reused for two occupied primary samples), with its caution that shared lighting can damage temporal stability. | Transmittance-dependent rate selection, jittered interpolation of shared lighting, wave operations and asynchronous compute. |
 

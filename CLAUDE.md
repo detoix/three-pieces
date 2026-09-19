@@ -91,6 +91,7 @@ before/after, and record the new number in the constant's comment.
 | `canopyProxyFrom`/`To` (`preset.js`) | 8/26 m | Blade resolvability and the coverage curve; both come from measurements, not taste. |
 | `canopyProxyOcclusion` (`preset.js`) | 0.75 | The far field's brightness against photographs; moves if the sun, palette or proxy ramp move. Its comment carries the sweep history. |
 | Cloud presets (`clouds.js`) | balanced | Visual softness against cost; each preset's cache sizes are in `packages/three/docs/sky-internals.md`. |
+| Cloud look (`cloud-lighting.js`; `EDGE`, `DENSITY_*`, feather and threshold in `clouds.js`) | see the files | Tuned against `measure-clouds.mjs` to keep the page's cloud cover and luma spread while making edges crisp and shadows grey; re-run it and `shoot.mjs` before and after, and time the sky paths -- the look currently costs what the old one did. `test/sky-cloud-lighting.test.js` holds the lighting's properties. |
 | Haze band (`apps/hills/src/options.js`) | 90-1100 m | The demo's framing only; it is a linear ramp, not aerial perspective. |
 | `SUN_ANCHOR`/`SKY_ANCHOR` (`lights.js`) | 3.3491/23.947 | Any change to the authored light pair; `test/sky-atmosphere.test.js` holds the anchors to the authored luminances. |
 

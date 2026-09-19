@@ -64,39 +64,40 @@ timestamp instrumentation.
 The demo exists so the sky and lawn can be recorded and posted; the look is
 the point, and dropped frames read as stutter. A 1080p review of the hills
 found the opening framing good and four problems when looking up or at large
-clouds:
+clouds: soft, out-of-focus clouds; dirty blue-grey insides on large ones; a
+repeating band at the horizon; and a ground that does not react to clouds.
 
-1. **Soft, out-of-focus clouds above about 20 degrees.** Edges blur over
-   20-40 pixels. Most of that is the density field: `densityAt` in
-   `packages/three/src/sky/clouds.js` ramps density linearly up from its
-   threshold, so the boundary spans roughly 50-100 m. The 1536x512 cache adds
-   a few pixels per texel at mid elevations.
-2. **Dirty blue-grey insides on large clouds.** In `march()`, once optical
-   depth grows, blue sky ambient dominates because multiple scattering is
-   under-weighted.
-3. **A repeating band at the horizon.** Shape noise repeats every 3.6 km
-   (`q.div(3.6)`), so at 25-50 km the same puffs tile along the band.
-4. **The ground does not react to clouds.** No cloud shadows, no cloud
-   attenuation of the lighting probe.
+**Done, 2026-09-19** -- the first three, in one change, because they turned
+out to be one problem:
 
-The plan, one commit per step, each judged with before/after `shoot.mjs`
-frames plus a timing check. The hills demo already drops frames, so steps 1-3
-must add no cost.
+- **Crisp clouds.** The density field ramped up linearly from nothing to a
+  quarter of a real cumulus's extinction, so every boundary was a hundred
+  metres deep and every cloud looked out of focus. It now has a body with an
+  edge, filtered to the width of one cache texel so a crisp boundary is never
+  point-sampled into a staircase; and the march is coarse in clear sky and
+  steps back to walk a boundary at a quarter step, so a sharp body does not
+  band.
+- **Grey shadows.** The lighting is `cloud-lighting.js`, a scalar contract
+  with its own tests: multiple scattering that diffuses rather than dying off
+  like the beam, powder on the fringes seen from the sun side, and the lit lawn
+  under the bases. The far sun samples read a smoothed density, so one point
+  a few hundred metres away no longer stamps a blue patch.
+- **The horizon no longer repeats exactly.** The weather map's humidity
+  channel slides the shape pattern between tiles, for free.
 
-1. **Lighting.** Multiple-scattering octaves for bright, neutral insides;
-   "powder" darkening on edges facing away from the sun; ground bounce on
-   cloud bases. Same sample count as now.
-2. **Crisp silhouettes.** Steeper density at the boundary and stronger fine
-   erosion at the edges. Watch for banding on long rays; it may need a fixed
-   per-texel jitter.
-3. **Break the horizon repetition.** A second shape sample at a period that
-   does not line up with 3.6 km, or a weather-driven offset, on far rays only.
-4. **Cloud shadows on the ground**, keeping the pieces independent:
-   - the sky exposes a small top-down sun-transmittance map as a TSL node;
-   - `GrassLightingModel.direct()` in `src/grass/blade-lighting.js` takes an
-     optional sun-visibility node. Blades and the ground surface both use it,
-     so that one hook covers both;
-   - the demo connects the two.
+It costs what the soft clouds did -- 1.32-1.34 ms of cloud compute a frame
+either way over three alternating trials -- and keeps the page's cloud cover
+and brightness to within a point in five of the six fixed views
+(`measure-clouds.mjs`). `packages/three/docs/sky-internals.md` has the
+details, the numbers and what is still limited.
+
+**Next: cloud shadows on the ground**, keeping the pieces independent:
+
+- the sky exposes a small top-down sun-transmittance map as a TSL node;
+- `GrassLightingModel.direct()` in `src/grass/blade-lighting.js` takes an
+  optional sun-visibility node. Blades and the ground surface both use it, so
+  that one hook covers both;
+- the demo connects the two.
 
 Experiments considered, not adopted -- each has to earn its cost in a matched
 comparison before it lands:
@@ -106,17 +107,17 @@ comparison before it lands:
   denser march and compare against it at sparse, normal and dense coverage,
   checking thin wisps, grazing horizon rays and sunlit edges. A speed-up that
   comes from skipping visible cloud is not a speed-up.
-- **Local light samples every step.** Lighting currently reuses all six sun
-  samples for two occupied primary samples. A variant refreshes the first two
-  (local) samples at every step and reuses only the far four, which should
-  sharpen sun-facing edges at some cost.
-- **Conservative empty-space skipping.** A coarse search that steps back on a
-  hit and integrates finely until the ray has been empty for a while (the
-  pattern in Loboda et al. §3.2) needs *max*-bound occupancy data. The
-  shape-only density bounds the eroded density at the same point, not over a
-  longer step, and averaged noise mipmaps can erase small clouds, so neither
-  is a safe bound on its own. Dense overcast may gain little, and divergence
-  on an integrated GPU can eat the saving.
+- **Local light samples every step.** Lighting reuses all six sun samples
+  across two coarse or eight fine occupied samples. A variant refreshes the
+  first two (local) samples at every step and reuses only the far four, which
+  should sharpen sun-facing edges at some cost.
+- **Conservative empty-space skipping.** The march now steps back on a hit
+  and integrates finely at a boundary (Loboda et al. §3.2), but it still
+  samples every coarse step. Skipping further than that needs *max*-bound
+  occupancy data: the shape-only density bounds the eroded density at the
+  same point, not over a longer step, and averaged noise mipmaps can erase
+  small clouds, so neither is a safe bound on its own. Dense overcast may gain
+  little, and divergence on an integrated GPU can eat the saving.
 
 Known limits that this plan does not remove:
 
