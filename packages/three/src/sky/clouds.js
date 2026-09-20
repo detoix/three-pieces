@@ -67,7 +67,11 @@ const LIGHT_REUSE_FINE = 8;
 // first two read the full body with erosion, the rest the smooth shape.
 const LIGHT_FIRST_KM = 0.015;
 const LIGHT_GROWTH = 2.45;
+const LIGHT_SAMPLES = 6;
+const LIGHT_SAMPLES_MAX = 8;
 const LIGHT_DETAILED = 2;
+/** How far the six segments reach, and so the longest sun path they cover. */
+const LIGHT_REACH_KM = LIGHT_FIRST_KM * LIGHT_GROWTH ** LIGHT_SAMPLES;
 // How far, in shape tiles, the humidity field slides the shape pattern.
 const SHAPE_SLIDE = 0.35;
 // A cumulus's base is flat because it is the height at which rising air
@@ -83,6 +87,32 @@ const SHAPE_SLIDE = 0.35;
 const BILLOW_RISE = 0.4;
 const BASE_CUT = 0.045;
 const SMOOTH_BASE = 0.1;
+
+/**
+ * How many sun segments to march, for a sun `sunHeight` above the horizon
+ * (the sine of its elevation). The segments have to span the sun's path
+ * through the layer, or a cloud is lit as though the cloud between it and the
+ * sun were not there. That path is the layer's depth over the sun's height:
+ * 1.7 km at the 49-degree sun the six growing segments were set for, but
+ * 9.3 km at 8 degrees, where a cloud is shadowed by clouds kilometres away.
+ * That long shadowing is most of what gives a low sun its shape, and six
+ * segments reach 1.3 km, so without it the whole sky lights as though it were
+ * alone.
+ *
+ * Segments are added rather than stretched: the near ones carry the cloud's
+ * own shading, and widening them to cover the distance changed a high sun's
+ * near field as much as it fixed a low sun's far one. Six or eight, never a
+ * count between: the count depends only on the sun, so it picks between two
+ * fixed loops rather than setting one loop's bound, and a bound the compiler
+ * cannot see costs 0.2 ms a frame for an image identical to the point of the
+ * pixel. Six cover every sun above 24 degrees, which is every sun the demo
+ * has; eight reach 8 km, the path at 9 degrees, and below that the beam is
+ * nearly out.
+ */
+export function cloudSunMarchSegments(sunHeight) {
+  const path = (TOP - BASE) / Math.max(0.02, sunHeight);
+  return path > LIGHT_REACH_KM ? LIGHT_SAMPLES_MAX : LIGHT_SAMPLES;
+}
 
 /** The coverage the weather map is drawn for: at it, local coverage is the
  *  map's own. */
@@ -304,6 +334,9 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
       const multiPhase = phaseHG(mu, L.msG).mul(0.5).add(0.5 / (4 * Math.PI)).mul(L.msWeight).toVar();
       const powderReach = mu.oneMinus().mul(0.5 * L.powderStrength).toVar();
       const sunUp = sunDirection.y.smoothstep(-0.08, 0.08).toVar();
+      // `cloudSunMarchSegments`, transcribed: a sun low enough that its path
+      // through the layer outruns six segments is marched with eight.
+      const lowSun = sunDirection.y.max(0.02).lessThan((TOP - BASE) / LIGHT_REACH_KM).toVar();
       const averaged = ambientStorage.element(0).toVar();
       const ambientSky = mix(skyColor, averaged.xyz, averaged.w).toVar();
       const groundBounce = vec3(...L.groundAlbedo)
@@ -342,7 +375,9 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
             emptyRun.addAssign(1);
           }).Else(() => {
             emptyRun.assign(0);
-            // Six sun samples, the near two through the full body. Their
+            // Six sun samples at a high sun, eight at a low one (the sun's
+            // path through the layer is longer), the near two through the
+            // full body. Their
             // optical depth is reused across a few occupied view samples and
             // not refreshed at all once the ray is deep, where what it lights
             // barely shows; entering cloud always refreshes it, so a gap
@@ -350,18 +385,22 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
             const reuse = fineMode.equal(1).select(uint(LIGHT_REUSE_FINE), uint(LIGHT_REUSE_COARSE));
             If(lightingAge.greaterThanEqual(reuse)
               .and(transmittance.greaterThan(DEEP_TRANSMITTANCE).or(lightingAge.greaterThanEqual(99))), () => {
-              opticalDepth.assign(0);
-              const lightDistance = float(LIGHT_FIRST_KM).toVar();
-              const previousDistance = float(0).toVar();
-              Loop(6, ({ i }) => {
-                const segment = lightDistance.sub(previousDistance);
-                const middle = lightDistance.add(previousDistance).mul(0.5);
-                opticalDepth.addAssign(densityAt(p.add(sunDirection.mul(middle)),
-                  i.lessThan(LIGHT_DETAILED).select(float(1), float(0)), segment, fieldOffset)
-                  .mul(segment).mul(EXTINCTION));
-                previousDistance.assign(lightDistance);
-                lightDistance.mulAssign(LIGHT_GROWTH);
-              });
+              const marchSun = segments => {
+                opticalDepth.assign(0);
+                const lightDistance = float(LIGHT_FIRST_KM).toVar();
+                const previousDistance = float(0).toVar();
+                Loop(segments, ({ i }) => {
+                  const segment = lightDistance.sub(previousDistance);
+                  const middle = lightDistance.add(previousDistance).mul(0.5);
+                  opticalDepth.addAssign(densityAt(p.add(sunDirection.mul(middle)),
+                    i.lessThan(LIGHT_DETAILED).select(float(1), float(0)), segment, fieldOffset)
+                    .mul(segment).mul(EXTINCTION));
+                  previousDistance.assign(lightDistance);
+                  lightDistance.mulAssign(LIGHT_GROWTH);
+                });
+              };
+              If(lowSun, () => { marchSun(LIGHT_SAMPLES_MAX); })
+                .Else(() => { marchSun(LIGHT_SAMPLES); });
               lightingAge.assign(0);
             });
             lightingAge.addAssign(1);

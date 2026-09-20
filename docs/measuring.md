@@ -246,6 +246,27 @@ frame has, so a brighter shaded side simply drags a different set of pixels
 into the selection. What shows it is the two renders' shots compared pixel for
 pixel (`shoot.mjs`, same label pair, the numbers in `sky-internals.md`).
 
+### How far the sun march has to reach
+
+Measured 2026-09-20, `shoot.mjs` at 1920x1080, wind stopped, coverage 0.48,
+comparing the six views pixel for pixel. Marching the sun 8 km instead of
+1.3 km changes **nothing** at the demo's 49-degree sun: no pixel of the six
+views differs by more than one level of 255. At an 8-degree sun the same
+change moves 13-37% of the pixels, by up to 149 levels: the sun's path
+through the cloud layer is 1.7 km at 49 degrees but 9.3 km at 8, so a low sun
+is where clouds shadow each other at a distance, and where a longer march is
+the whole difference between a modelled bank of cloud and an evenly lit haze.
+
+This is the measurement to repeat before building anything that buys reach --
+a voxel light grid, a cached far-light volume -- because at the sun the demo
+ships with, reach is not what is missing. Timed the same day with
+`benchmark.mjs --mode timed`, three alternating trials of the sky path: at 49
+degrees, where the march stays at six segments, 1.29-1.45 ms against
+1.27-1.42 ms, indistinguishable; at 8 degrees, where it takes eight,
+1.31-1.40 ms against 1.38-1.54 ms. A version that instead set one loop's
+bound from the sun rendered the identical image and cost 1.54-1.59 ms against
+1.33-1.46 ms: worth knowing before writing a loop whose count is a uniform.
+
 ## Cloud shadows
 
 Measured 2026-09-19, later the same day, on the same GPU at 1920x1080 with

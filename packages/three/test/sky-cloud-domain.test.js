@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   COVERAGE_REFERENCE, cloudDirection, cloudLayerDistance, cloudLocalCoverage,
+  cloudSunMarchSegments,
 } from '../src/sky/clouds.js';
 import { createCloudWeatherData } from '../src/sky/cloud-noise.js';
 
@@ -105,4 +106,31 @@ test('coverage below the default thins every region, not just the edges of humid
   const densest = (coverage) => Math.max(...locals.map((local) => cloudLocalCoverage(local, coverage)));
   assert.equal(densest(COVERAGE_REFERENCE), 1);
   close(densest(0.1), 0.1 / COVERAGE_REFERENCE, 1e-9);
+});
+
+test('the sun march spans the sun\'s path through the layer at any elevation', () => {
+  const LAYER_KM = 2.65 - 1.35;
+  const reach = (segments) => 0.015 * 2.45 ** segments;
+  // The demo's sun, and every sun a high one stands for: six segments, which
+  // is what the sky costs today. A seventh would change nothing -- marching
+  // to 8 km at 49 degrees renders the same image pixel for pixel -- so it
+  // must not be spent.
+  for (const elevation of [89, 60, 49, 30, 24]) {
+    const height = Math.sin((elevation * Math.PI) / 180);
+    assert.equal(cloudSunMarchSegments(height), 6, `${elevation} degrees`);
+    assert.ok(reach(6) >= LAYER_KM / height, `six segments must span ${elevation} degrees`);
+  }
+  // Low suns, where the path through the layer is kilometres and a cloud is
+  // shadowed by clouds far away.
+  for (const elevation of [23, 15, 9]) {
+    const height = Math.sin((elevation * Math.PI) / 180);
+    assert.equal(cloudSunMarchSegments(height), 8, `${elevation} degrees`);
+    assert.ok(reach(6) < LAYER_KM / height, `six segments cannot span ${elevation} degrees`);
+    assert.ok(reach(8) >= LAYER_KM / height, `eight segments must span ${elevation} degrees`);
+  }
+  // A sun at or under the horizon is still a number, and never more than the
+  // eight segments the shader's other branch holds.
+  for (const height of [0.02, 0, -0.5, -1]) {
+    assert.equal(cloudSunMarchSegments(height), 8, `sun height ${height}`);
+  }
 });

@@ -142,7 +142,19 @@ conservative than a plain march at the coarse step.
 
 **Lighting** uses six sun samples, at the midpoints of segments growing 2.45x
 from 15 m, which reaches 1.3 km: the path from a cumulus's underside to a
-49-degree sun through a kilometre of cloud. The first two read the full body with
+49-degree sun through a kilometre of cloud. The segments have to span that
+path, or a cloud is lit as though the cloud between it and the sun were not
+there, and the path is the layer's depth over the sun's height: 1.7 km at 49
+degrees, but 9.3 km at 8, where clouds shadow each other for kilometres. So a
+sun below 24 degrees, whose path outruns the six, is marched with eight, which
+reach 8 km. Two fixed loops and a branch on the sun, not one loop with the
+count in a variable: the count is the same for every ray, but a bound the
+compiler cannot see cost 0.2 ms a frame -- 12% of the cloud compute -- for an
+image identical to the pixel. Nothing else was worth adding at the demo's sun:
+marching it to 8 km renders the same six views pixel for pixel, which is also
+why a voxel light grid, the usual way to buy long-distance inter-cloud
+shadows, is not here: it would pay for its bookkeeping only at a low sun,
+where these two extra texture reads buy the same thing. The first two read the full body with
 erosion; the other four read a smooth density (the shape field, not the sharp
 body), because a segment a few hundred metres long averages over a cloud and
 its gaps, and a single point there used to decide the shading of a whole patch
@@ -399,12 +411,16 @@ with 3 s warmup and 10 s samples:
   horizon's texture.
 - **The lighting is tuned, not validated.** The multiple-scattering falloff
   is set against photographs, and powder and the ground bounce against the
-  rendered image; none is derived. The sun march reaches 1.3 km and past its
-  first two samples (about 40 m) it reads a smoothed density, so one cloud's
-  shadow on another is soft and reaches no further than that.
+  rendered image; none is derived. Past its first two samples (about 40 m) the
+  sun march reads a smoothed density, so one cloud's shadow on another is
+  soft. It reaches 1.3 km, or 8 km under a sun below 24 degrees, which is the
+  path through the layer down to 9 degrees; under a sun lower than that a
+  cloud is still lit as though the last kilometres of cloud between it and
+  the sun were not there.
 - **Cloud shadows shade the sun, not the sky.** Under a cloud, only the direct
-  beam is taken away; the host's sky light is the clear-sky probe's, and
-  there is still no cloud attenuation of the probe. Positions above the cloud
+  beam is taken away. The clouds light themselves by the cloudy sky they make,
+  but the probe `bake` hands the host is still the clear sky's, so the lawn's
+  sky light does not dim under cloud or take its colour. Positions above the cloud
   base, and more than 1.56 km from the observer, are not shaded.
 - **Where the weather puts the observer decides the scene.** The weather map
   lays out overcast regions several kilometres across, saturated over 18% of
