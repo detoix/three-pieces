@@ -4,7 +4,7 @@ import { CLOUD_LIGHTING } from './cloud-lighting.js';
 import { CLOUD_SHADOW, WIND_Z, cloudDrift, createCloudShadowMap } from './cloud-shadow.js';
 
 const { Fn, If, Loop, Break, float, uint, vec2, vec3, vec4, uvec2,
-  uniform, instanceIndex, texture, texture3D, storageTexture, mix, atan,
+  uniform, instanceIndex, storage, texture, texture3D, storageTexture, mix, atan,
   cameraPosition } = THREE.TSL;
 
 // Kilometres throughout the volume. This is a ground-view renderer: the cache
@@ -197,6 +197,18 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
   const amount = uniform(coverage);
   const sunColor = uniform(new THREE.Vector3(0.923, 0.830, 0.700));
   const skyColor = uniform(new THREE.Vector3(0.0314, 0.0646, 0.127));
+  // The sky a cloud actually sits in: the clear sky's irradiance as the clouds
+  // leave it, plus what they scatter back. A cloud's shaded side is lit by its
+  // neighbours as much as by the blue overhead -- with the clear sky alone
+  // every shaded side drifts blue -- and the finished cache is the only place
+  // this renderer knows what the neighbours look like. Averaged off it once a
+  // cycle by `ambientPass`; `cloudySkyIrradiance` in `cloud-lighting.js` is
+  // the scalar contract. RGB is the irradiance and A says it has been written:
+  // the average is read off the cache, so the first snapshots -- the ones that
+  // fill it -- have none to read, and take the clear sky instead.
+  const ambientAttribute = new THREE.StorageBufferAttribute(1, 4, Float32Array);
+  ambientAttribute.name = 'Cloudy sky irradiance';
+  const ambientStorage = storage(ambientAttribute, 'vec4', 1);
 
   // `p` is relative to whoever is looking -- curvature is measured from them --
   // and `offset` is where they stand in the drifting field, so `p + offset`
@@ -292,8 +304,10 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
       const multiPhase = phaseHG(mu, L.msG).mul(0.5).add(0.5 / (4 * Math.PI)).mul(L.msWeight).toVar();
       const powderReach = mu.oneMinus().mul(0.5 * L.powderStrength).toVar();
       const sunUp = sunDirection.y.smoothstep(-0.08, 0.08).toVar();
+      const averaged = ambientStorage.element(0).toVar();
+      const ambientSky = mix(skyColor, averaged.xyz, averaged.w).toVar();
       const groundBounce = vec3(...L.groundAlbedo)
-        .mul(sunColor.mul(sunDirection.y.max(0)).add(skyColor))
+        .mul(sunColor.mul(sunDirection.y.max(0)).add(ambientSky))
         .mul(L.groundShadow / Math.PI).toVar();
       // Midpoint quadrature: no persistent spatial jitter to stipple the cache.
       const distance = start.add(coarse.mul(0.5)).toVar();
@@ -362,7 +376,7 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
             const scattered = beer.mul(phase).add(diffuse.mul(multiPhase)).mul(darkening);
             // Tops see the sky and bases the sunlit lawn below.
             const h = p.y.add(p.xz.dot(p.xz).div(2 * EARTH)).sub(BASE).div(TOP - BASE).clamp(0, 1);
-            const ambient = skyColor.mul(mix(float(L.skyAmbientBase), float(L.skyAmbientTop), h))
+            const ambient = ambientSky.mul(mix(float(L.skyAmbientBase), float(L.skyAmbientTop), h))
               .add(groundBounce.mul(h.oneMinus()));
             const source = sunColor.mul(scattered).mul(sunUp).add(ambient).mul(exposure);
             const segmentT = density.mul(stepLength).mul(-EXTINCTION).exp().toVar();
@@ -454,6 +468,34 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
     const view = d.mul(depth).add(offset).add(wind).normalize().toVar();
     return directionUV(view);
   });
+  // One invocation, 256 cosine-weighted directions over the upper hemisphere,
+  // run once a cache cycle: the mean radiance the clouds add and the mean
+  // share of the clear sky they leave. The cosine weighting is in the
+  // sampling, so the hemisphere integral is a plain mean times pi -- the way
+  // the atmosphere's own probe does it in `sky-nodes.js`. The cache holds
+  // radiance after exposure and the probe's irradiance is before it, so the
+  // scattered part is divided back out.
+  const AMBIENT_AXIS = 16;
+  const ambientPass = Fn(() => {
+    const radianceTotal = vec3(0).toVar();
+    const transmittanceTotal = float(0).toVar();
+    Loop(AMBIENT_AXIS, AMBIENT_AXIS, ({ i, j }) => {
+      const u1 = i.toFloat().add(0.5).div(AMBIENT_AXIS);
+      const u2 = j.toFloat().add(0.5).div(AMBIENT_AXIS);
+      const sinTheta = u1.sqrt();
+      const phi = u2.mul(2 * Math.PI);
+      const direction = vec3(sinTheta.mul(phi.cos()), u1.oneMinus().max(0).sqrt(), sinTheta.mul(phi.sin()));
+      const sample = current.sample(directionUV(direction)).level(0);
+      radianceTotal.addAssign(sample.rgb);
+      transmittanceTotal.addAssign(sample.a);
+    });
+    const samples = AMBIENT_AXIS * AMBIENT_AXIS;
+    const meanTransmittance = transmittanceTotal.div(samples).toVar();
+    const scattered = radianceTotal.mul(Math.PI / samples).div(exposure.max(1e-6));
+    ambientStorage.element(0).assign(
+      vec4(skyColor.mul(meanTransmittance).add(scattered), 1));
+  })().compute(1, [1]).setName('Average the cloudy sky');
+
   const sampleNode = Fn(([direction]) => {
     const result = vec4(0, 0, 0, 1).toVar();
     If(cacheReady.greaterThan(0).and(direction.y.greaterThan(0)), () => {
@@ -479,7 +521,7 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
   const observerKm = [0, 0];
   const stats = { quality, width, height, steps, slices, coverage, windSpeed,
     maxSteps: 256, targetStepKm: 0.05, fineStepFraction: FINE_FRACTION, maxIterations: MAX_ITERATIONS,
-    computeNodeIds: [initializePass.id, updatePass.id],
+    computeNodeIds: [initializePass.id, updatePass.id, ambientPass.id],
     bytes: width * height * 8 * 6 + noiseData.data.byteLength + weatherData.data.byteLength +
       (shadow?.stats.bytes ?? 0),
     shadow: shadow?.stats ?? null,
@@ -515,6 +557,19 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
     destinationDepth.value = depths[0];
     await renderer.computeAsync(initializePass);
     if (disposed) return;
+    // That first snapshot is a probe: its clouds are lit by the clear sky,
+    // because there was no cloudy one to average yet. Average it, then march
+    // the displayed snapshots again under the sky the clouds themselves make.
+    // One round is enough -- the second order is a few percent of a term that
+    // is itself a fraction of the light -- and without it the look would
+    // depend on the wind, which is what refreshes the average afterwards: a
+    // still sky would keep the clouds it marched before it knew its own
+    // colour.
+    current.value = maps[0];
+    await renderer.computeAsync(ambientPass);
+    if (disposed) return;
+    await renderer.computeAsync(initializePass);
+    if (disposed) return;
     destination.value = maps[1];
     destinationDepth.value = depths[1];
     snapshotTime.value = elapsed + cycleDuration;
@@ -532,6 +587,8 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
     previousOrigin.value.set(...snapshotOrigins[0]); currentOrigin.value.set(...snapshotOrigins[1]);
     displayTime.value = elapsed;
     blend.value = 0;
+    await renderer.computeAsync(ambientPass);
+    if (disposed) return;
     await shadow?.bake(observerKm, cloudDrift(elapsed, windSpeed));
     if (disposed) return;
     cacheReady.value = 1;
@@ -580,6 +637,8 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
         currentTime.value = snapshotTimes[currentIndex];
         previousOrigin.value.set(...snapshotOrigins[previousIndex]);
         currentOrigin.value.set(...snapshotOrigins[currentIndex]);
+        // A complete snapshot is the only thing the ambient average reads.
+        renderer.compute(ambientPass);
         cycleDuration = Math.max(0.05, elapsed - cycleStart);
         cycleStart = elapsed;
         snapshotTime.value = elapsed + 2 * cycleDuration;
@@ -593,7 +652,7 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
     dispose() {
       if (disposed) return;
       disposed = true; ready = false;
-      initializePass.dispose(); updatePass.dispose();
+      initializePass.dispose(); updatePass.dispose(); ambientPass.dispose();
       shadow?.dispose();
       noise.dispose(); weather.dispose(); maps.forEach(t => t.dispose()); depths.forEach(t => t.dispose());
     },

@@ -209,7 +209,7 @@ function recordedClouds(options = {}) {
       disposed.set(pass.id, 0);
       pass.addEventListener('dispose', () => disposed.set(pass.id, disposed.get(pass.id) + 1));
     }
-    calls.push({ kind, id: pass.id, count: pass.count });
+    calls.push({ kind, id: pass.id, count: pass.count, name: pass.name });
   };
   const clouds = createVolumetricClouds({
     renderer: { computeAsync: record('async'), compute: record('frame') },
@@ -226,7 +226,8 @@ test('each bake marches one whole shadow map after the sky, and a still sky walk
   const { clouds, calls, disposed } = recordedClouds({ windSpeed: 0 });
   const shadow = clouds.stats.shadow;
   const [fullId, sliceId] = shadow.computeNodeIds;
-  const shadowCalls = () => calls.filter(call => shadow.computeNodeIds.includes(call.id));
+  const shadowCalls = () => calls.filter(call => shadow.computeNodeIds.includes(call.id))
+    .map(({ kind, id, count }) => ({ kind, id, count }));
   const texels = shadow.resolution * shadow.resolution;
   try {
     await clouds.bake();
@@ -268,7 +269,8 @@ test('no clouds, no shadow and no shadow work', async () => {
     assert.equal(clouds.stats.shadow, null);
     await clouds.bake();
     for (let frame = 0; frame < 200; frame++) clouds.update(frame, { x: frame * 100, z: 0 });
-    assert.ok(calls.every(call => clouds.stats.computeNodeIds.includes(call.id)));
+    assert.ok(calls.every(call => clouds.stats.computeNodeIds.includes(call.id) ||
+      call.name === 'Average the cloudy sky'), 'only the cache and its ambient average run');
     assert.equal(clouds.shadowNode().isNode, true, 'still a node: a constant 1');
   } finally { clouds.dispose(); }
 });

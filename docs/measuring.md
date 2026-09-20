@@ -230,6 +230,22 @@ Cloud cover is unchanged by it -- 48.8/77.8/48.7/49.1/18.3/7.6% at 0.48 --
 and so is the sky's compute: 0.91-0.96 ms a frame looking at the sky, three
 alternating trials of each on an integrated laptop GPU at 1920x1080.
 
+Measured 2026-09-20, the same way, when the ambient a cloud is lit by became
+the cloudy sky instead of the clear one (`packages/three/docs/sky-internals.md`,
+"The sky a cloud sits in"):
+
+| Render, wind stopped | Spread, 0.48 | Saturation, 0.48 | Spread, 0.1 | Saturation, 0.1 |
+| --- | ---: | ---: | ---: | ---: |
+| Clear-sky ambient | 0.75 | 0.10/0.20 | 0.80 | 0.10/0.19 |
+| Cloudy-sky ambient | 0.72 | 0.11/0.19 | 0.80 | 0.09/0.19 |
+
+Cover is unchanged to a tenth of a point at either coverage. This tool's
+`shaded rgb` column cannot show the change, and that is worth knowing before
+reading it for one: it is the mean of the darkest 15% of the cloud pixels a
+frame has, so a brighter shaded side simply drags a different set of pixels
+into the selection. What shows it is the two renders' shots compared pixel for
+pixel (`shoot.mjs`, same label pair, the numbers in `sky-internals.md`).
+
 ## Cloud shadows
 
 Measured 2026-09-19, later the same day, on the same GPU at 1920x1080 with

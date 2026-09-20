@@ -167,9 +167,44 @@ transcribes term for term and `test/sky-cloud-lighting.test.js` holds:
 - **Ambient**: tops see the sky (0.2 of its irradiance at the base of the
   layer, 0.8 at the top), bases see the sunlit lawn below -- the atmosphere's
   own ground albedo under the sun and sky, cut to a quarter for the cloud
-  field's shadow on it.
+  field's shadow on it. The sky in both is the cloudy sky, not the clear
+  probe; the next section is how it is arrived at.
 - **Exponential cloud aerial haze** blends distant clouds toward the sky
   behind them, as before.
+
+**The sky a cloud sits in** is the cloudy one. A shaded side is lit as much by
+the white cloud beside it as by the blue overhead, and under the clear-sky
+probe alone every shaded side drifts blue however bright its neighbours are.
+The finished cache is the only place this renderer knows what the neighbours
+look like, so one invocation averages it over 256 cosine-weighted directions
+of the upper hemisphere -- the cosine weighting in the sampling, so the
+integral is a plain mean times pi, as the atmosphere's own probe does it in
+`sky-nodes.js` -- into `clear * meanTransmittance + pi * meanCloudRadiance`:
+the clear sky as the clouds leave it, plus what they scatter back.
+`cloudySkyIrradiance` in `cloud-lighting.js` is the scalar contract. It runs
+once a cache cycle, off the snapshot that has just been completed, and twice
+at a bake: a bake's first snapshot is a probe, lit by the clear sky because
+there is no cloudy one to average yet, and the two displayed snapshots are
+then marched again under the average taken off it. One round is enough -- the
+second order is a few percent of a term that is itself a fraction of the light
+-- and without it the look would depend on the wind, which is what refreshes
+the average afterwards: a still sky would keep the clouds it marched before it
+knew its own colour.
+
+Measured at 1920x1080 on an integrated laptop GPU, wind stopped. At coverage
+0.48 the averaged sky is (0.079, 0.110, 0.165) against the clear probe's
+(0.031, 0.065, 0.127): blue over red 2.1, where the clear sky's is 4.0. Over
+the six fixed views the darkest quarter of the cloud pixels brightens by
+0.04-0.07 in red and about half that in blue -- in the opening framing (0.598,
+0.676, 0.735) to (0.658, 0.719, 0.761), closing the gap between blue and red
+by a quarter -- and their hue warms 1.2 to 1.6 degrees. At the demo's
+coverage, 0.1, there is little beside a cloud to light it: the average is
+(0.042, 0.075, 0.137) and no pixel of the six moves by more than ten levels of
+255. It costs nothing a frame: over three alternating GPU-timed trials the
+cloud compute measured 1.49-1.57 ms looking at the sky and 1.30-1.33 ms
+walking under it, old and new alike. The two extra marches move the bake,
+which happens at load and whenever the sun does, from about 85 ms to about
+120 ms.
 
 These are rendering approximations tuned against the image, not an
 energy-validated scattering model or a meteorological simulation. The first

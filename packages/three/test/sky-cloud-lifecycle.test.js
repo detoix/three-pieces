@@ -7,12 +7,19 @@ function createRecordedClouds(options = {}) {
   const initializations = [];
   const updates = [];
   // The shadow map's own passes, kept apart: these tests are about the sky's
-  // cache, and `sky-cloud-shadow.test.js` is about the shadows.
+  // cache, and `sky-cloud-shadow.test.js` is about the shadows. The ambient
+  // average is kept apart for the same reason: it runs once a bake and once a
+  // completed cycle, and it reads the cache rather than filling it.
   const shadowMarches = [];
+  const ambientAverages = [];
   const disposedPasses = new Map();
   function record(target, pass) {
     if (clouds.stats.shadow?.computeNodeIds.includes(pass.id)) {
       shadowMarches.push({ id: pass.id, count: pass.count });
+      return;
+    }
+    if (pass.name === 'Average the cloudy sky') {
+      ambientAverages.push({ id: pass.id, count: pass.count });
       return;
     }
     if (!disposedPasses.has(pass.id)) {
@@ -34,7 +41,7 @@ function createRecordedClouds(options = {}) {
     quality: 'low',
     ...options,
   });
-  return { clouds, initializations, updates, shadowMarches, disposedPasses };
+  return { clouds, initializations, updates, shadowMarches, ambientAverages, disposedPasses };
 }
 
 for (const [condition, options] of [
@@ -42,7 +49,7 @@ for (const [condition, options] of [
   ['zero coverage', { coverage: 0 }],
 ]) {
   test(`${condition} initializes both cloud snapshots but skips all incremental compute`, async () => {
-    const { clouds, initializations, updates, shadowMarches } = createRecordedClouds(options);
+    const { clouds, initializations, updates, shadowMarches, ambientAverages } = createRecordedClouds(options);
     // One whole shadow map a bake, when there are clouds to cast one.
     const shadowsPerBake = options.coverage === 0 ? 0 : 1;
     try {
@@ -50,7 +57,12 @@ for (const [condition, options] of [
       assert.equal(initializations.length + updates.length, 0,
         'no cloud work may run before a bake');
       await clouds.bake();
-      assert.equal(initializations.length, 2);
+      // Three marches of the whole hemisphere a bake: a probe, whose clouds
+      // are lit by the clear sky because there is no cloudy one to average
+      // yet, and the two displayed snapshots, marched again under the average
+      // taken off that probe.
+      assert.equal(initializations.length, 3);
+      assert.equal(ambientAverages.length, 2, 'averaged off the probe, then off the displayed sky');
       assert.ok(initializations.every(pass =>
         pass.id === clouds.stats.computeNodeIds[0] &&
         pass.count === clouds.stats.width * clouds.stats.height));
@@ -66,7 +78,7 @@ for (const [condition, options] of [
       // Static animation does not prevent an explicit lighting rebake.
       await clouds.bake({ sun: [0.6, 0.5, 0.4], sky: [0.1, 0.2, 0.3] });
       clouds.update(0);
-      assert.equal(initializations.length, 4);
+      assert.equal(initializations.length, 6);
       assert.equal(updates.length, 0);
       assert.equal(shadowMarches.length, 2 * shadowsPerBake);
     } finally { clouds.dispose(); }
@@ -120,7 +132,7 @@ test('animated clouds complete every configured slice before advancing and clamp
   });
   try {
     await clouds.bake();
-    assert.equal(initializations.length, 2);
+    assert.equal(initializations.length, 3);
     const slices = clouds.stats.slices;
     assert.ok(Number.isInteger(slices) && slices > 1);
     const texels = clouds.stats.width * clouds.stats.height;
@@ -140,7 +152,7 @@ test('animated clouds complete every configured slice before advancing and clamp
       assert.ok(Math.abs(clouds.stats.cacheLatencySeconds - slices / 60) < 0.02);
     }
     assert.ok(updates.every(pass => pass.id === clouds.stats.computeNodeIds[1]));
-    assert.equal(initializations.length, 2, 'incremental rotation does not rebake the whole atlas');
+    assert.equal(initializations.length, 3, 'incremental rotation does not rebake the whole atlas');
 
     // A resumed tab must not report hours of simulation inside the next cache
     // cycle. The long first interval contributes the documented 0.1 s maximum.
@@ -151,11 +163,11 @@ test('animated clouds complete every configured slice before advancing and clamp
 
     clouds.dispose();
     clouds.dispose();
-    assert.equal(disposedPasses.size, 2);
+    assert.equal(disposedPasses.size, 2, 'the cache passes; the average and the shadows are counted apart');
     assert.ok([...disposedPasses.values()].every(count => count === 1));
     clouds.update(10002);
     await clouds.bake();
     assert.equal(updates.length, slices * 3);
-    assert.equal(initializations.length, 2);
+    assert.equal(initializations.length, 3);
   } finally { clouds.dispose(); }
 });

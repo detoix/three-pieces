@@ -56,8 +56,9 @@ export interface CloudStats {
   readonly slices: number;
   readonly coverage: number;
   readonly windSpeed: number;
-  /** Runtime node IDs for initialization and incremental update timestamp attribution. */
-  readonly computeNodeIds: readonly [number, number];
+  /** Runtime node IDs for timestamp attribution: initialization, incremental update,
+   *  and the once-a-cycle average of the cloudy sky the clouds are lit by. */
+  readonly computeNodeIds: readonly [number, number, number];
   /** Estimated texture bytes, including the shadow maps, excluding driver allocations and pipelines. */
   readonly bytes: number;
   /** The cloud shadow map; null at zero coverage, where there is no shadow to march. */

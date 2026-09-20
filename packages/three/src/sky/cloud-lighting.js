@@ -91,7 +91,23 @@ export function cloudGroundBounce({ sun, sky, sunHeight }) {
     (albedo * (sun[channel] * Math.max(0, sunHeight) + sky[channel]) * L.groundShadow) / Math.PI);
 }
 
-/** Ambient radiance at normalized layer height `height` (0 base, 1 top). */
+/**
+ * The irradiance a cloud sits in: the clear sky as the clouds leave it, plus
+ * what they scatter back. `meanTransmittance` and `meanCloudRadiance` are
+ * cosine-weighted means over the upper hemisphere, read off the finished cloud
+ * cache; `clear` is the atmosphere's own probe, which never sees a cloud.
+ *
+ * Without the second term a cloud's shaded side is lit by the blue sky alone
+ * and drifts blue, however white the cloud beside it is. Overcast, the first
+ * term goes to nothing and the sky is what the cloud bases send down.
+ */
+export function cloudySkyIrradiance({ clear, meanTransmittance, meanCloudRadiance }) {
+  return clear.map((value, channel) =>
+    value * meanTransmittance + Math.PI * meanCloudRadiance[channel]);
+}
+
+/** Ambient radiance at normalized layer height `height` (0 base, 1 top). `sky`
+ *  is `cloudySkyIrradiance`, not the clear-sky probe. */
 export function cloudAmbient({ sky, ground, height }) {
   const L = CLOUD_LIGHTING;
   const h = Math.min(1, Math.max(0, height));

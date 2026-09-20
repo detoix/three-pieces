@@ -5,6 +5,7 @@ import { ATMOSPHERE, sunDirectionFrom } from '../src/sky/atmosphere.js';
 import {
   CLOUD_LIGHTING,
   cloudAmbient,
+  cloudySkyIrradiance,
   cloudGroundBounce,
   cloudInScattering,
   cloudMultiPhase,
@@ -138,4 +139,33 @@ test('the lighting constants stay in the ranges their comments argue for', () =>
   assert.ok(L.powder > 0 && L.powderStrength >= 0 && L.powderStrength <= 1);
   assert.ok(L.skyAmbientBase < L.skyAmbientTop);
   assert.ok(L.groundShadow > 0 && L.groundShadow <= 1);
+});
+
+test('the sky a cloud sits in is the clear sky the clouds leave, plus the clouds', () => {
+  const clear = [0.0314, 0.0646, 0.127];
+  const same = cloudySkyIrradiance({ clear, meanTransmittance: 1, meanCloudRadiance: [0, 0, 0] });
+  assert.deepEqual(same, clear, 'a clear sky is its own probe');
+
+  // Overcast: nothing of the blue is left, and the bases are what light a cloud.
+  const bases = [0.02, 0.02, 0.021];
+  const overcast = cloudySkyIrradiance({ clear, meanTransmittance: 0, meanCloudRadiance: bases });
+  overcast.forEach((value, channel) => {
+    assert.ok(Math.abs(value - Math.PI * bases[channel]) < 1e-12);
+  });
+  // ...and it is white where the clear sky was blue: the blue channel led by
+  // four times the red, the overcast one by a twentieth.
+  assert.ok(clear[2] / clear[0] > 4);
+  assert.ok(overcast[2] / overcast[0] < 1.1);
+
+  // Monotonic in both, and brighter than the blue alone once clouds are lit.
+  let previous = 0;
+  for (let transmittance = 0; transmittance <= 1.0001; transmittance += 0.1) {
+    const value = cloudySkyIrradiance({ clear, meanTransmittance: transmittance, meanCloudRadiance: [0, 0, 0] })[1];
+    assert.ok(value >= previous - 1e-12, 'monotonic in transmittance');
+    previous = value;
+  }
+  // Half a sky of sunlit cloud sends down more than the blue it replaced: the
+  // radiance of a lit cloud is an order above the clear sky's own.
+  const half = cloudySkyIrradiance({ clear, meanTransmittance: 0.5, meanCloudRadiance: [0.03, 0.03, 0.031] });
+  assert.ok(half[1] > 1.5 * clear[1], `half a sky of lit cloud: ${half[1]} against ${clear[1]}`);
 });
