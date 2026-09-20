@@ -74,6 +74,7 @@ Options other than the sun are fixed at construction; make a new instance to cha
 - `cloudShadowNode(worldPositionNode?)`: TSL float, the fraction of the sun's direct beam the clouds let through to a world position in metres (by default the fragment's own `positionWorld`). Null when clouds are disabled; a constant 1 at zero coverage. See [Cloud shadows](#cloud-shadows).
 - `fogNodeFor({ near, far })`: creates a TSL fog node with sky-colored linear distance fog. Distances must satisfy `0 <= near < far`. This is an artistic haze approximation, not volumetric aerial perspective or cloud fog.
 - `sunDirection`: a frozen `[x, y, z]` snapshot. Set the sun through `setSun`; changing a returned array cannot alter internal uniforms.
+- `cloudySkyIrradiance`: a frozen `[r, g, b]` in the probe's own units, the irradiance of the sky the clouds make -- the clear sky as they leave it, plus what they scatter back. Null with clouds disabled and before the first bake, where the probe's `sky` is the answer. Refreshed once a cloud cache cycle, off the cache itself, and replaced only when it changes, so `irradiance !== lastApplied` is a sound test for whether a host's sky light needs re-pointing. See [The sky under clouds](#the-sky-under-clouds).
 - `bake() → Promise<{ sun, sky }>`: initializes atmosphere LUTs, reads the lighting probe and submits complete cloud initialization. Later bakes reuse invariant atmosphere tables. Successful completion makes `ready` true; GPU queue ordering makes initialization available to subsequent rendering. This promise is not a request to idle the entire GPU.
 - `setSun(elevationDegrees, azimuthDegrees) → Promise<{ sun, sky }>`: validates the angles and serializes an atmosphere/probe/cloud rebake. It also initializes all LUTs when called before `bake()`. It is intended for occasional sun changes, not per-frame animation.
 - `update(seconds, observer?) → boolean`: accepts one frame update when clouds are available. `observer` is the camera's world position in metres (only `x` and `z` are read). When given, each cloud snapshot is marched from where the observer stands as it begins, and parallax is measured from that point, so the sky stays correct however far the camera walks. A new position reaches the display within two cache cycles. The cloud shadow map follows the same observer. With zero wind, snapshots are remarched only after the observer moves 100 m. Omitted, the observer is the world origin, as before. Returns false before a successful bake, while a bake is in progress, after a failed bake, with clouds disabled, or after disposal. True means the update was accepted; zero wind or zero coverage skips incremental compute after initialization. Time must not go backwards between successful bakes. Long clock gaps are currently clamped internally to 0.1 seconds of cloud simulation per update. A successful bake resets the input clock guard.
@@ -86,7 +87,28 @@ Options other than the sun are fixed at construction; make a new instance to cha
 
 **Sun changes are not atomic visual transitions.** Shared uniforms and atlas textures change while the asynchronous operation runs. To avoid displaying an intermediate frame, pause host rendering, await `setSun`, update host-owned lights from its returned probe, then resume. Serialization protects resource and lighting consistency between requests; it does not create a second complete atmosphere for crossfading.
 
-The returned probe contains linear RGB values in normalized model units: above-atmosphere solar irradiance is `[1, 1, 1]`; `sun` is direct irradiance on a surface facing the sun and `sky` is clear-sky irradiance integrated over an upward hemisphere. Neither includes `exposure`, and neither sees the clouds: cloud shadows on the ground are `cloudShadowNode`, below, and cloud attenuation of the probe is not implemented. The API makes no assumptions about the host's directional-light or hemisphere-light calibration.
+The returned probe contains linear RGB values in normalized model units: above-atmosphere solar irradiance is `[1, 1, 1]`; `sun` is direct irradiance on a surface facing the sun and `sky` is clear-sky irradiance integrated over an upward hemisphere. Neither includes `exposure`, and neither sees the clouds: cloud shadows on the ground are `cloudShadowNode` and the sky the clouds make is `cloudySkyIrradiance`, both below. The API makes no assumptions about the host's directional-light or hemisphere-light calibration.
+
+## The sky under clouds
+
+The probe is the clear sky's. A sky with clouds in it sends down more light than that, and much less of it blue -- white cloud scatters the sun back at every wavelength -- so a host that lights its ground from the probe alone keeps a clear sky's blue ambient under an overcast one. `cloudySkyIrradiance` is the same hemisphere integral taken off the finished cloud cache, in the same units, for the host's sky light:
+
+```js
+const probe = await sky.bake();
+let litSky = null;
+
+function followSky() {           // once a frame; it only acts when the sky moves
+  const sky3 = sky.cloudySkyIrradiance ?? probe.sky;
+  if (sky3 === litSky) return;
+  litSky = sky3;
+  applySkyLighting({ sun, skyLight, probe: { sun: probe.sun, sky: sky3 } });
+}
+```
+
+- **It is one number for the whole sky.** It follows the weather around the observer, not the cloud directly overhead, so it does not dim as a single cloud passes. What dims under a passing cloud is the sun, through `cloudShadowNode`.
+- **It is brighter than the probe, not darker.** Measured on the hills demo, at its own coverage the sky light gains 17% of luminance and its blue-to-red ratio falls from 4.1 to 3.3; at the sky's default coverage, 73% and 2.1. An overcast sky is a bright sky; what a cloud takes away is the sun.
+- **It costs a 16-byte readback a cache cycle**, never awaited by a frame, and a lost one leaves the previous value standing.
+- **It moves any calibration made under the probe.** On the hills demo the lawn's rendered hue moved 1.2 degrees, which `apps/hills/scripts/measure-lawn-hue.mjs` measures; `packages/three/src/grass/preset.js` records what that constant depends on.
 
 ## Cloud shadows
 
@@ -105,7 +127,7 @@ ground.receiveShadow = true; // and every other mesh the clouds should shade
 No shadow map is rendered: a light carrying this node casts no geometric shadows, and combining the two is untested. Pass the camera to `update()` as the observer so the shadows follow it.
 
 - **Coverage.** Every position within `clouds.stats.shadow.reachKm` (1.56 km) of the observer is shaded from a complete map; beyond the map the node reads 1. Positions are projected along the sun onto the ground, so heights below the cloud base (1.35 km) are handled; anything above it is not.
-- **Only the direct sun.** The host's sky or hemisphere light is unchanged under a cloud, as the probe is, so how dark a shadow reads is the balance between the host's two lights.
+- **Only the direct sun.** A shadow takes the beam away and nothing else; how dark it reads is the balance between the host's two lights. The sky light is not shaded per position -- `cloudySkyIrradiance` moves it for the whole scene as the weather does.
 - **Low sun.** Shadows are cast by a sun no lower than about 3 degrees; below that the projection runs away to infinity.
 - **Cost.** The map is of the drifting cloud field, not of the ground, and the field does nothing but drift, so a map stays exact until the observer or the wind has moved it 0.5 km. Then the next one is marched behind it over 64 frames and swapped in whole. A steady frame marches nothing, and the lookup is one texture read. Measured figures are in [sky-internals.md](sky-internals.md).
 

@@ -126,10 +126,15 @@ earlier building-scene figures, which are no longer the reference.
   97.3% at 16-24 m and 99.9% past 24 m. The far ring is still not grass. The
   preset's own figures, in the `canopyProxyFrom` comment, are for full-size
   blades and are lower near the camera; compare like with like.
-- Rendered lawn hue, at the demo's default dials: mean 100.4 over six bands,
+- Rendered lawn hue, at the demo's default dials: mean 99.2 over six bands,
   drifting +5.1 degrees from near to far, at the palette target of 92. The
   target was swept to land 99 over flat ground at the preset's blade size;
-  a degree and a half on a different framing is not a reason to move it.
+  a degree and a half on a different framing is not a reason to move it. It
+  read 100.4 until the sky light began following the clouds (2026-09-20, two
+  alternating runs of each); that light is now weather-dependent, and the
+  same lawn reads 95.3 and 36% brighter at the sky's default coverage of
+  0.48. Sweep this at the demo's coverage, which is what the constant is
+  calibrated at.
 - Sky exposure: the fully fogged band reads 0.6077 against the flat control's
   0.6080 at `skyexposure=7.1`, so the exposure still holds the far band.
 - The 1920x1080 / 60 FPS target is not met on the ground paths. The next

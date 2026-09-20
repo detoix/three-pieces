@@ -85,7 +85,7 @@ before/after, and record the new number in the constant's comment.
 
 | Constant | Value | Moves when |
 | --- | --- | --- |
-| `LAWN_TARGET_HUE` (`preset.js`) | 92 | Anything that changes what a lawn pixel is made of: palette, underlay, occlusion, lights, canopy proxy. Sweep with `measure-lawn-hue.mjs`. |
+| `LAWN_TARGET_HUE` (`preset.js`) | 92 | Anything that changes what a lawn pixel is made of: palette, underlay, occlusion, lights, canopy proxy. The sky light now follows the clouds, so cloud coverage is one of them: sweep at the demo's coverage, with `measure-lawn-hue.mjs`. |
 | `SKY_EXPOSURE` (`apps/hills/src/options.js`) | 7.1 | The sun, the medium or the tone mapper. It is the value at which the fully fogged far band matches the flat `#b8c9b5` control; sweep with `measure-sky.mjs`. |
 | `minHeight`/`maxHeight` (`preset.js`) | 5.5-10.5 cm | Bare-ground coverage. Sweep with `measure-lawn-coverage.mjs`. |
 | `minWidth`/`maxWidth` (`preset.js`) | 4.0-6.5 mm | Bare-ground coverage in the 6-16 m band. Sweep with `measure-lawn-coverage.mjs`. |

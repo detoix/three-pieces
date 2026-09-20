@@ -171,3 +171,68 @@ test('animated clouds complete every configured slice before advancing and clamp
     assert.equal(initializations.length, 3);
   } finally { clouds.dispose(); }
 });
+
+test('the cloudy sky is read off the cache, once written, and keeps its identity', async () => {
+  const reads = [];
+  // A vec4: the irradiance, and A as the flag `ambientPass` sets once it has
+  // a cache to average. Values a float32 holds exactly, so the readback can
+  // be compared for what it is.
+  let stored = new Float32Array([0, 0, 0, 0]);
+  const clouds = createVolumetricClouds({
+    renderer: {
+      computeAsync: async () => {},
+      compute: () => {},
+      getArrayBufferAsync: async (attribute, readback, offset, size) => {
+        reads.push({ name: attribute.name, offset, size });
+        return { buffer: stored.buffer.slice(0), release() {} };
+      },
+    },
+    sunDirection: TSL.uniform(new Vector3(0, 1, 0)),
+    exposure: TSL.uniform(1),
+    skyRadianceNode: TSL.Fn(() => TSL.vec3(0.1, 0.2, 0.3)),
+    quality: 'low',
+    windSpeed: 0,
+  });
+  try {
+    assert.equal(clouds.cloudySky, null, 'no sky before a bake');
+    await clouds.bake();
+    assert.equal(clouds.cloudySky, null, 'an unwritten average is not a sky');
+    assert.equal(reads.length, 1, 'one readback a bake');
+    assert.equal(reads[0].size, 16, 'one vec4');
+
+    stored = new Float32Array([0.0625, 0.125, 0.25, 1]);
+    await clouds.bake();
+    assert.deepEqual([...clouds.cloudySky], [0.0625, 0.125, 0.25]);
+    assert.ok(Object.isFrozen(clouds.cloudySky));
+
+    const unchanged = clouds.cloudySky;
+    await clouds.bake();
+    assert.equal(clouds.cloudySky, unchanged, 'a sky that has not moved is the same array');
+
+    stored = new Float32Array([0.0625, 0.125, 0.5, 1]);
+    await clouds.bake();
+    assert.notEqual(clouds.cloudySky, unchanged, 'a sky that has moved is a new one');
+    assert.deepEqual([...clouds.cloudySky], [0.0625, 0.125, 0.5]);
+  } finally { clouds.dispose(); }
+});
+
+test('a failed readback costs a cycle of freshness, not the bake', async () => {
+  const clouds = createVolumetricClouds({
+    renderer: {
+      computeAsync: async () => {},
+      compute: () => {},
+      getArrayBufferAsync: async () => { throw new Error('device lost the buffer'); },
+    },
+    sunDirection: TSL.uniform(new Vector3(0, 1, 0)),
+    exposure: TSL.uniform(1),
+    skyRadianceNode: TSL.Fn(() => TSL.vec3(0.1, 0.2, 0.3)),
+    quality: 'low',
+    windSpeed: 0,
+  });
+  try {
+    await clouds.bake();
+    assert.equal(clouds.cloudySky, null);
+    assert.equal(clouds.stats.generation, 0);
+    clouds.update(0);
+  } finally { clouds.dispose(); }
+});

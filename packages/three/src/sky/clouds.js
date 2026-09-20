@@ -535,6 +535,43 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
       vec4(skyColor.mul(meanTransmittance).add(scattered), 1));
   })().compute(1, [1]).setName('Average the cloudy sky');
 
+  // The same average, on the CPU, for whatever lights the ground below: a
+  // host's sky light is the clear sky's until it is told otherwise, and under
+  // cloud the sky is both brighter and far less blue than that. One readback
+  // a cache cycle, of sixteen bytes, never awaited by a frame; a failed or
+  // still-unwritten read leaves the last value standing.
+  const ambientBytes = 4 * Float32Array.BYTES_PER_ELEMENT;
+  const ambientReadback = new THREE.ReadbackBuffer(ambientBytes);
+  ambientReadback.name = 'Cloudy sky irradiance readback';
+  let cloudySky = null;
+  let readingAmbient = false;
+  async function readAmbient() {
+    if (readingAmbient || disposed) return;
+    readingAmbient = true;
+    let result;
+    try {
+      result = await renderer.getArrayBufferAsync(ambientAttribute, ambientReadback, 0, ambientBytes);
+      if (disposed) return;
+      const values = new Float32Array(result.buffer);
+      // A is the written flag `ambientPass` sets; before it, there is nothing
+      // to report and the host's own clear-sky probe is the better answer.
+      // The array is replaced only when the sky has actually moved, so a host
+      // can tell a new sky from a repeated one by identity alone.
+      if (values[3] > 0 && (cloudySky === null || cloudySky.some((channel, i) => channel !== values[i]))) {
+        cloudySky = Object.freeze([values[0], values[1], values[2]]);
+      }
+    } catch (error) {
+      // The sky is a background detail of someone else's scene: a lost
+      // readback costs it one cycle's freshness, not the page.
+    } finally {
+      // r185 marks a reusable ReadbackBuffer mapped before awaiting mapAsync,
+      // as `sky-nodes.js` records at its own probe.
+      if (result) result.release();
+      else if (ambientReadback._mapped) ambientReadback.release();
+      readingAmbient = false;
+    }
+  }
+
   const sampleNode = Fn(([direction]) => {
     const result = vec4(0, 0, 0, 1).toVar();
     If(cacheReady.greaterThan(0).and(direction.y.greaterThan(0)), () => {
@@ -628,6 +665,8 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
     blend.value = 0;
     await renderer.computeAsync(ambientPass);
     if (disposed) return;
+    await readAmbient();
+    if (disposed) return;
     await shadow?.bake(observerKm, cloudDrift(elapsed, windSpeed));
     if (disposed) return;
     cacheReady.value = 1;
@@ -637,6 +676,9 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
   return { sampleNode, stats, bake,
     /** Sun transmittance to a world position in metres; see `cloud-shadow.js`. */
     shadowNode: worldPosition => shadow ? shadow.shadowNode(worldPosition) : float(1),
+    /** The irradiance of the sky these clouds make, or null until one is read.
+     *  A new array each time it changes, so a host can compare identities. */
+    get cloudySky() { return cloudySky; },
     update(nowSeconds, observer) {
       if (!ready || disposed) return;
       readObserver(observer);
@@ -678,6 +720,7 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
         currentOrigin.value.set(...snapshotOrigins[currentIndex]);
         // A complete snapshot is the only thing the ambient average reads.
         renderer.compute(ambientPass);
+        readAmbient();
         cycleDuration = Math.max(0.05, elapsed - cycleStart);
         cycleStart = elapsed;
         snapshotTime.value = elapsed + 2 * cycleDuration;
@@ -692,6 +735,7 @@ export function createVolumetricClouds({ renderer, sunDirection, exposure,
       if (disposed) return;
       disposed = true; ready = false;
       initializePass.dispose(); updatePass.dispose(); ambientPass.dispose();
+      ambientReadback.dispose();
       shadow?.dispose();
       noise.dispose(); weather.dispose(); maps.forEach(t => t.dispose()); depths.forEach(t => t.dispose());
     },

@@ -178,7 +178,8 @@ palette is not the image: the palette target is **92** while the image is
 aimed at 99, and the gap between them is swept rather than derived -- rendered
 mean hue is close to linear in the palette number, at about 0.93 degrees of
 image per degree of palette. On the hills demo, at its own dials, 92 lands a
-mean of 100.4 (one trial, `docs/measuring.md`). The gap has moved in both
+mean of 99.2 (two trials, `docs/measuring.md`); it landed 100.4 before the sky
+light followed the clouds, which is now one of the things that moves it. The gap has moved in both
 directions as the underlay, occlusion and lights changed; the history is in
 the `LAWN_TARGET_HUE` comment in `preset.js`, and the constant is re-swept,
 never re-derived, when any of them moves. `lawnColorsFor()` rotates every green by one delta

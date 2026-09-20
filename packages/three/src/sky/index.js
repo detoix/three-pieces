@@ -161,6 +161,16 @@ export function createSky(options = {}) {
       return volume.shadowNode(worldPosition);
     } : null,
     get sunDirection() { return Object.freeze(atmosphere.sunDirection.value.toArray()); },
+    /**
+     * The irradiance of the sky as the clouds leave it -- what `bake`'s probe
+     * reports, dimmed by the clouds and added to by them -- in the probe's own
+     * units, for a host's sky light. Null with clouds disabled or before the
+     * first bake, where the probe's own `sky` is the answer. It is refreshed
+     * once a cloud cache cycle and is a new frozen array only when it changes,
+     * so a host can test it by identity. It is one number for the whole sky:
+     * it follows the weather around the observer, not the cloud overhead.
+     */
+    get cloudySkyIrradiance() { return volume?.cloudySky ?? null; },
     get ready() { return ready; },
     get disposed() { return disposed; },
     get stats() {

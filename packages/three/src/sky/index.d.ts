@@ -102,6 +102,15 @@ export interface Sky {
    * `clouds.stats.shadow.reachKm` of the observer passed to update(); past the map it is 1.
    */
   readonly cloudShadowNode: ((worldPosition?: Node) => Node) | null;
+  /**
+   * The irradiance of the sky the clouds make, in the same units as the probe's `sky`:
+   * the clear sky as the clouds leave it, plus what they scatter back. Null with clouds
+   * off and before the first bake, where the probe's own `sky` is the answer. Refreshed
+   * once a cloud cache cycle, and a new frozen array only when it changes, so a host can
+   * test it by identity. One number for the whole sky: it follows the weather around the
+   * observer, not the cloud overhead.
+   */
+  readonly cloudySkyIrradiance: readonly [number, number, number] | null;
   /** Frozen world direction [x, y, z]; +Y is up. */
   readonly sunDirection: readonly [number, number, number];
   /** True after a successful bake and false during work, failure or disposal. */

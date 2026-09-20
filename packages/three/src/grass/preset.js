@@ -680,7 +680,18 @@ export const GRASS004_ALBEDO_MEAN = '#606c30';
  *   them they carried the rendered image up 12.2 degrees at unchanged
  *   luminance, so the palette came down the same distance to **92**.
  *
- * That last one is worth more than its number. The overshoot over the
+ * - Then the sky light stopped being the clear sky's. A sky with clouds in it
+ *   sends down more light and much less of it blue, and the sky now reports
+ *   that (`cloudySkyIrradiance`); at the demo's cloud coverage it carries the
+ *   sky light up 17% at a blue-to-red ratio of 3.3 where the clear sky's is
+ *   4.1. That moved the rendered mean *down* 1.2 degrees, from 100.4 to 99.2,
+ *   and **92 held**: two runs each, alternated, one degree nearer the target
+ *   than before. It is a dependency worth naming, though, because it is the
+ *   first one that moves with the weather rather than with the code: at the
+ *   sky's default coverage of 0.48 the same lawn renders 95.3 and 36%
+ *   brighter. The demo's coverage is what this constant is swept at.
+ *
+ * The lights one is worth more than its number. The overshoot over the
  * authored hue was 17.7 degrees and is now 5.3: **most of what the palette was
  * compensating for was the lighting being wrong, not the underlay.** An
  * authored warm sun and a neutral ambient were yellowing every pixel, and the
@@ -692,7 +703,8 @@ export const GRASS004_ALBEDO_MEAN = '#606c30';
  * the occlusion, the lights or the blades' coverage. Every number above came
  * out of a rendered-hue sweep over flat ground at the preset's blade size;
  * `apps/hills/scripts/measure-lawn-hue.mjs` is that sweep for the hills demo,
- * where 92 lands a mean of 100.4 at the demo's own dials (one trial, see
+ * where 92 lands a mean of 99.2 at the demo's own dials, the cloudy sky light
+ * included (two trials; it landed 100.4 under the clear-sky probe, see
  * `docs/measuring.md`). A degree and a half is inside what the reference
  * photographs hold; move this constant only on a repeated sweep, never to
  * chase one run. Two dials move it at a glance -- `?proxy=0` drops the

@@ -120,6 +120,19 @@ export async function startHills({ adapter }) {
 
     let lighting = null;
     let cloudShadows = false;
+    // The probe as baked, and the sky irradiance the lights were last pointed
+    // at. The clouds report a sky of their own once a cache cycle -- brighter
+    // and much less blue than the clear one -- and the lights follow it.
+    let probe = null;
+    let litSky = null;
+    const followSky = () => {
+      if (!probe || !lawn.skyLights) return;
+      const cloudy = sky?.cloudySkyIrradiance ?? null;
+      const skyIrradiance = cloudy ?? probe.sky;
+      if (skyIrradiance === litSky) return;
+      litSky = skyIrradiance;
+      lighting = applySkyLighting({ sun, skyLight, probe: { sun: probe.sun, sky: skyIrradiance } });
+    };
     if (lawn.sky === 'atmosphere') {
       if (loadingText) loadingText.textContent = 'Baking the atmosphere…';
       sky = createSky({
@@ -135,8 +148,8 @@ export async function startHills({ adapter }) {
         cloudWindSpeed: lawn.cloudWindSpeed,
       });
       try {
-        const probe = await sky.bake();
-        if (probe && lawn.skyLights) lighting = applySkyLighting({ sun, skyLight, probe });
+        probe = await sky.bake();
+        followSky();
       } catch (error) {
         console.warn('Sky lighting probe failed; keeping authored lights.', error);
       }
@@ -251,6 +264,7 @@ export async function startHills({ adapter }) {
       ground.follow(camera);
       // The camera is the observer, so the clouds follow the walk.
       sky?.update(now / 1000, camera.position);
+      followSky();
       grass.update(camera);
       renderer.render(scene, camera);
 

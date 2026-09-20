@@ -203,6 +203,12 @@ second order is a few percent of a term that is itself a fraction of the light
 the average afterwards: a still sky would keep the clouds it marched before it
 knew its own colour.
 
+The same average is read back to the CPU once a cycle, sixteen bytes through a
+`ReadbackBuffer`, never awaited by a frame: that is `cloudySkyIrradiance` on
+the sky, and it is what a host points its own sky light at. A lost readback
+leaves the previous value standing, and the array is replaced only when the
+value moves, so a host can test it by identity.
+
 Measured at 1920x1080 on an integrated laptop GPU, wind stopped. At coverage
 0.48 the averaged sky is (0.079, 0.110, 0.165) against the clear probe's
 (0.031, 0.065, 0.127): blue over red 2.1, where the clear sky's is 4.0. Over
@@ -417,10 +423,13 @@ with 3 s warmup and 10 s samples:
   path through the layer down to 9 degrees; under a sun lower than that a
   cloud is still lit as though the last kilometres of cloud between it and
   the sun were not there.
-- **Cloud shadows shade the sun, not the sky.** Under a cloud, only the direct
-  beam is taken away. The clouds light themselves by the cloudy sky they make,
-  but the probe `bake` hands the host is still the clear sky's, so the lawn's
-  sky light does not dim under cloud or take its colour. Positions above the cloud
+- **The sky light follows the weather, not the cloud overhead.** Under a
+  cloud, only the direct beam is taken away. The clouds do report the sky they
+  make, as one hemisphere-wide number a host can point its sky light at
+  (`cloudySkyIrradiance`), but it is the same number everywhere in the scene:
+  it moves as the weather around the observer does, and not as a single cloud
+  crosses. A per-position sky attenuation would need the shadow map's
+  ancestor, a sky-visibility field, which is not here. Positions above the cloud
   base, and more than 1.56 km from the observer, are not shaded.
 - **Where the weather puts the observer decides the scene.** The weather map
   lays out overcast regions several kilometres across, saturated over 18% of
