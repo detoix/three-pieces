@@ -1,5 +1,4 @@
 import { sunAnglesOf } from '@detoix/three-pieces/sky';
-import { HILLS_DEFAULT_SCALE } from '@detoix/three-pieces/terrain';
 import {
   CLUMP_PULL_MARGIN,
   LAWN,
@@ -22,6 +21,23 @@ import {
  */
 const SHIPPED_SUN_OFFSET = [24, 34, 17];
 const SUN_ANGLES = sunAnglesOf(SHIPPED_SUN_OFFSET);
+
+/**
+ * The demo's hills, gentler than the terrain piece's own default of 0.7.
+ *
+ * This page is a sky and a lawn; the hills are what keeps the lawn from
+ * ending. At 0.7 the ridge the start point sits under fills the lower two
+ * thirds of the opening frame and cuts the horizon short, which is the wrong
+ * trade for a page whose subject is above it. At 0.5 the same ridges still
+ * read as hills -- the far ones still overlap and occlude, and walking still
+ * crests and dips -- with the sky back. Below about 0.3 it is a plain with a
+ * swell in it.
+ *
+ * Only the demo's framing; the piece's `HILLS_DEFAULT_SCALE` is unchanged, as
+ * with the demo's blade size. `?hills=0.7` is the piece's default and
+ * `?hills=0` a flat lawn.
+ */
+const DEMO_HILLS_SCALE = 0.5;
 
 /**
  * What the sky's radiance is multiplied by on its way to the tone mapper.
@@ -228,7 +244,7 @@ export function readHillsOptions(search = '') {
   const hazeNear = number('hazenear', 90, 0, 2000);
   return {
     /** Vertical scale of the hills; 0 is a flat, still unbounded, lawn. */
-    hills: number('hills', HILLS_DEFAULT_SCALE, 0, 2),
+    hills: number('hills', DEMO_HILLS_SCALE, 0, 2),
     /** Eye height above the ground in metres. */
     eye: number('eye', 1.7, 0.3, 80),
     walkSpeed: number('walk', 2.8, 0.1, 50),

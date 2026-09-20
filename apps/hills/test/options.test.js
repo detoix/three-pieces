@@ -188,7 +188,12 @@ test('capability gate explains HTTPS and WebGPU failures separately', () => {
 
 test('hills dials default to a walkable demo and clamp what a URL can ask for', () => {
   const defaults = readHillsOptions('');
-  assert.equal(defaults.hills, HILLS_DEFAULT_SCALE);
+  // The demo frames a sky, so its hills are gentler than the terrain piece's
+  // own default; see `DEMO_HILLS_SCALE` in options.js.
+  assert.equal(defaults.hills, 0.5);
+  assert.ok(defaults.hills < HILLS_DEFAULT_SCALE);
+  assert.equal(readHillsOptions('?hills=0.7').hills, HILLS_DEFAULT_SCALE,
+    'the piece\'s own hills are one dial away');
   assert.equal(defaults.eye, 1.7);
   assert.equal(defaults.ui, true);
   assert.ok(defaults.hazeFar > defaults.hazeNear);

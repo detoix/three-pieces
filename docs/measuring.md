@@ -251,6 +251,18 @@ frame has, so a brighter shaded side simply drags a different set of pixels
 into the selection. What shows it is the two renders' shots compared pixel for
 pixel (`shoot.mjs`, same label pair, the numbers in `sky-internals.md`).
 
+### The demo's hills, and what that does to these numbers
+
+On 2026-09-20 the demo's terrain scale dropped from the terrain piece's 0.7 to
+0.5 (`DEMO_HILLS_SCALE` in `apps/hills/src/options.js`): at 0.7 the ridge over
+the start point took the lower two thirds of the opening frame. Cover is a
+share of the *sky* pixels, so it barely moves -- at coverage 0.48 the six
+views read 48.0/76.4/48.2/48.5/18.3/7.4% against 48.8/77.8/48.7/49.1/18.3/7.6%
+before, and the pooled spread and saturation are inside their run-to-run
+noise. Absolute cover figures dated before that day were taken at `?hills=0.7`
+all the same. The lawn sweeps are unaffected: `measure-lawn-hue.mjs` and
+`measure-lawn-coverage.mjs` both drive flat ground.
+
 ### How far the sun march has to reach
 
 Measured 2026-09-20, `shoot.mjs` at 1920x1080, wind stopped, coverage 0.48,
