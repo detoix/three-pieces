@@ -64,7 +64,6 @@ import {
 } from './preset.js';
 import {
   GRASS_RINGS,
-  RING_SEED_STRIDE,
   TOTAL_GRASS_CANDIDATES,
   WORLD_CELL_BIAS,
   bladeVertexCount,
@@ -72,6 +71,9 @@ import {
   grassTriangleCount,
   snapRingState,
 } from './grid.js';
+import {
+  GRASS_BASE_DENSITY, GRASS_BASE_SPACING, nestedCrownCellNode, crownRetentionNode,
+} from './placement.js';
 import { GRASS_RECORD_WORDS, grassStorageFootprint } from './record-layout.js';
 import {
   GRASS_CULL_TILE_SIDE, GRASS_CULL_TILE_LANES, cullTileCapacity, selectCullTiles,
@@ -371,19 +373,22 @@ function createRingResources({
     // well. This mapping never depends on the camera or the current origin.
     const wrapped = cell.sub(cell.div(ring.side).floor().mul(ring.side));
     const recordIndex = uint(wrapped.y).mul(uint(ring.side)).add(uint(wrapped.x));
+    // Coarser allocations select crowns from the same fine world lattice.
+    // Storage still addresses the allocation cell, but every placement/pose
+    // property uses this shared identity, so an LOD handover cannot replant it.
+    const crownCell = nestedCrownCellNode(ring, cell).toVar('crownCell');
     // The bias keeps signed cells positive before the WGSL float→uint cast.
-    const seed = uint(cell.x.add(WORLD_CELL_BIAS))
+    const seed = uint(crownCell.x.add(WORLD_CELL_BIAS))
       .mul(uint(1_664_525))
-      .add(uint(cell.y.add(WORLD_CELL_BIAS)).mul(uint(1_013_904_223)))
-      .add(uint(ring.seedIndex * RING_SEED_STRIDE))
+      .add(uint(crownCell.y.add(WORLD_CELL_BIAS)).mul(uint(1_013_904_223)))
       .toVar('cellSeed');
     const jitter = vec2(hash(seed.add(11)), hash(seed.add(23)))
       .sub(0.5)
       .mul(0.8);
-    const worldXZ = cell
+    const worldXZ = crownCell
       .add(0.5)
       .add(jitter)
-      .mul(ring.spacing)
+      .mul(GRASS_BASE_SPACING)
       .toVar('worldXZ');
     const height = groundHeightAt(worldXZ).toVar('groundHeight');
     const normalStep = heightMap.normalStep ?? heightMap.texelWorldSize;
@@ -402,7 +407,7 @@ function createRingResources({
     const bladeWidthUnit = hash(seed.add(53));
     const yawUnit = hash(seed.add(67));
     const tint = hash(seed.add(79));
-    const retention = hash(seed.add(97));
+    const retention = crownRetentionNode(crownCell);
     const macro = surface.macroAt(worldXZ);
     // The two scales of world signal this crown answers to: the metre-scale
     // macro that varies its density and tint, and the patch-scale health that
@@ -499,7 +504,9 @@ function createRingResources({
           surface.densityFrom(appearance.z),
         );
         const retained = appearance.y.lessThanEqual(
-          density.div(ring.candidateDensity).clamp(0, 1),
+          // One absolute density rank survives all LODs. Independent per-ring
+          // lotteries replaced existing crowns at 8/24 m despite equal counts.
+          density.div(GRASS_BASE_DENSITY).clamp(0, 1),
         );
         const owned = distance
           .greaterThanEqual(ring.inner)

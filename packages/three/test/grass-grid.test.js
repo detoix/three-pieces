@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import {
   GRASS_RINGS,
-  RING_SEED_STRIDE,
   TOTAL_GRASS_CANDIDATES,
   createRingState,
   ringDistance,
@@ -158,8 +157,8 @@ test('close and near share crowns and the original 0–8 m density curve', () =>
   assert.equal(close.spacing, near.spacing);
   assert.equal(close.seedIndex, near.seedIndex);
   assert.equal(close.seedIndex, 0);
-  assert.equal(mid.seedIndex, 1, 'adding a draw must not reshuffle mid crowns');
-  assert.equal(far.seedIndex, 2, 'adding a draw must not reshuffle far crowns');
+  assert.equal(mid.seedIndex, 0, 'mid selects crowns from the shared seed stream');
+  assert.equal(far.seedIndex, 0, 'far selects crowns from the shared seed stream');
   const original = { ...near, inner: 0, outer: 8,
     densityInner: undefined, densityOuter: undefined };
   for (let distance = 0; distance <= 8; distance += 0.03125) {
@@ -178,7 +177,7 @@ test('close and near share crowns and the original 0–8 m density curve', () =>
       const slot = slotForWorldCell(state.ring, x, z);
       const cell = worldCellForSlot(state, slot);
       assert.deepEqual(cell, { x, z });
-      return worldCellSeed(cell.x, cell.z, state.ring.seedIndex * RING_SEED_STRIDE);
+      return worldCellSeed(cell.x, cell.z);
     });
     assert.equal(seeds[0], seeds[1]);
     assert.equal(seeds[0], worldCellSeed(x, z, 0));

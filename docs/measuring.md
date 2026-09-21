@@ -108,6 +108,38 @@ otherwise. Query options can be appended to `--url` directly, for example
 tools that need a specific control add it themselves and say so in their
 output.
 
+## Grass identity stability, 2026-09-21
+
+Compared independent ring placement with nested crown identities on a
+hardware-WebGPU integrated GPU at 1920x1080 and the demo's default settings.
+Three alternating baseline/fix trials per mode, each with 3 s warmup and
+8 s sampling on the fixed walk and turn paths. GPU timestamps and ordinary
+cadence were measured separately; every run checked the actual renderer
+adapter and unchanged source hashes. Values below are medians across trials
+(GPU entries are medians of the per-trial medians).
+
+| Measurement | Independent rings | Nested identities |
+| --- | ---: | ---: |
+| Walk GPU frame time | 16.94 ms | 16.46 ms |
+| Turn GPU frame time | 18.05 ms | 17.21 ms |
+| Walk ordinary cadence | 51.25 FPS | 50.63 FPS |
+| Turn ordinary cadence | 49.75 FPS | 49.77 FPS |
+
+There is no measured GPU-cost regression and no established frame-rate gain.
+Walk cadence varied from 50.88-51.38 FPS before and 48.90-51.11 FPS after;
+the 95th-percentile ordinary frame interval remained 33.4 ms on both paths
+and variants. This change removes replacement of crowns at 8/24 m while
+retaining the candidate, storage and draw budgets; it does not establish the
+60 FPS target. Newly admitted density cohorts still arrive at cull refreshes.
+
+A separate hardware compute/readback check matched all 10,004 signed
+ring/cell samples to the CPU reference for canonical identity and packed
+retention rank. Six fixed before/after views kept comparable lawn coverage
+and colour, and 10 s ground-facing stress captures were recorded separately
+from timing. The identity/distribution/approach regressions, full workspace
+tests and production build passed. Measurements and captures use the ignored
+`stable-lod-*` labels under the demo's measurements/shots directories.
+
 ## First hills numbers
 
 Measured 2026-09-18 with the tools above, on an integrated laptop GPU at

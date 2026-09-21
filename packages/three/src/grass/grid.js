@@ -5,7 +5,8 @@
  * only each grid's integer world-cell origin; it never changes a capacity and
  * never replaces a buffer. Cells address the storage toroidally, so a move
  * updates only newly exposed strips. The shader uses the same integer cells
- * as seeds, so returning to a place returns the same grass.
+ * to recover nested fine-grid crown identities, so returning to a place or
+ * approaching through another ring returns the same grass.
  */
 
 const RAW_RINGS = [
@@ -37,7 +38,7 @@ const RAW_RINGS = [
   {
     id: 'mid',
     ribbon: true,
-    seedIndex: 1,
+    seedIndex: 0,
     inner: 8,
     outer: 24,
     spacing: 0.075,
@@ -47,7 +48,7 @@ const RAW_RINGS = [
   },
   {
     id: 'far',
-    seedIndex: 2,
+    seedIndex: 0,
     inner: 24,
     outer: 52,
     spacing: 0.2,
@@ -56,8 +57,6 @@ const RAW_RINGS = [
     densityFar: 0,
   },
 ];
-
-export const RING_SEED_STRIDE = 97_531;
 
 export const WORLD_CELL_BIAS = 1_048_576;
 
@@ -73,10 +72,9 @@ export const GRASS_RINGS = Object.freeze(
     return Object.freeze({
       ...ring,
       index,
-      // Draw order and shape LOD may change without moving crowns or changing
-      // their retention lottery. Close/near share one world grid and density
-      // curve; only the owner and its blade geometry change at two metres.
-      seedIndex: ring.seedIndex ?? index,
+      // Every LOD shares the fine crown's seed stream. `placement.js` selects
+      // nested identities without changing these persistent allocation grids.
+      seedIndex: ring.seedIndex,
       densityInner: ring.densityInner ?? ring.inner,
       densityOuter: ring.densityOuter ?? ring.outer,
       side,

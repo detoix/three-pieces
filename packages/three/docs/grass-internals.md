@@ -23,7 +23,8 @@ culling, storage and the shared lawn surface.
 ```text
 four persistent camera-centred rings (close / near / mid / far)
                 down only when a ring crosses its own cell boundary
-snapped integer world cells -> deterministic placement + terrain sampling
+snapped allocation cells -> nested fine-grid crown identities
+                        -> deterministic placement + terrain sampling
                             + one shared lawn-macro sample per crown
                             + one patch-scale health sample per crown
                             + one 3x3 Voronoi clump search per crown
@@ -41,8 +42,9 @@ Nothing is allocated, destroyed or repacked as the camera moves. Each crown
 keeps the same slot in the same GPU buffers; a world cell keeps its physical
 slot until it leaves the ring window. Snapping changes only a ring's
 two-number origin, and only newly exposed strips are re-placed. Integer world
-cells seed all jitter, height, width, yaw and thinning, so leaving a place and
-returning reconstructs exactly the same lawn.
+cells recover a canonical fine-grid identity that seeds all jitter, height,
+width, yaw and thinning, so leaving a place and returning reconstructs exactly
+the same lawn. The coarser rings select subsets of those same identities.
 
 A candidate is a **crown**, not a blade. Each grows `LAWN.tillers` blades, so
 blade density is that multiple of the numbers below while slots, records,
@@ -62,11 +64,27 @@ it, all from the crown's own hash.
 The four rings hold **1,123,056 fixed candidate slots**. Their seven-word
 placement records and four-byte visible IDs occupy about 35.9 MB (34.3 MiB) of
 typed-array data on the CPU and the same as storage on the GPU, before renderer
-overhead. Close and near share one world grid, one seed stream and one density
-curve, so only the owning ring and the blade geometry change at 2 m. Density
-falls continuously inside every band and the far ring reaches zero, so real
-geometry changes LOD and then hands off to the textured ground without a
-density step or a hard outer edge.
+overhead. Close and near share one world grid and density curve, so only the
+owning ring and the blade geometry change at 2 m. Mid selects one hashed fine
+cell out of each 3x3 block; far selects the mid cell containing each far cell's
+centre and then that same fine child. All roots remain inside their allocation
+cell, preserving the coarse tile bounds and strip-update budget. Every ring
+uses the canonical fine cell's seed with no ring salt, preserving the root,
+height, width, facing, clump, colour and tiller offsets across handovers.
+
+**Stable thinning.** Matching counts alone is insufficient: independent mid
+and far grids used to replace the entire population crossing 8 m and 24 m.
+Now each canonical crown has one absolute density rank in the existing
+16-bit retention field. Far representatives occupy codes 0-1023, additional
+mid representatives 1024-7281, and fine-only crowns 7282-65535. Midpoint
+decoding maps these to ranks in crowns/m2 over 0-1600. The bin boundaries
+straddle exactly 25 and 177.78 crowns/m2, so packing cannot round an extra
+near crown into a cohort with no matching distant representative. All rings
+compare that same rank against target density times the local macro factor.
+Approaching a crown only increases this threshold: existing crowns survive,
+and extra detail joins them. The far ring still reaches zero. Target density,
+candidate capacity, packed stride, draw count and vertex/fragment work remain
+unchanged; the hierarchy is recovered only during placement.
 
 The record is seven 32-bit words: exact world X/Z float bits plus packed
 ground/blade height, upper-hemisphere terrain normal X/Z, yaw/width, tint and
@@ -107,7 +125,12 @@ controls drawing; the motion margin (which bounds plane-distance change rather
 than position) keeps the retained list conservative. A projection change, a
 non-rigid camera matrix or an explicit `invalidateCulling()` forces a refresh.
 Visible-pose caching (`poseCache`) and subgroup culling (`subgroupCulling`)
-exist but are off by default.
+exist but are off by default. This reuse still batches newly admitted crowns
+at each refresh; stable identity removes replacement at LOD boundaries, not
+all density pop-in or sub-pixel aliasing. Geometry still simplifies at the
+shape boundaries. A continuous width fade would be a separate visual/cost
+tradeoff, requiring live density evaluation and conservative admission of
+crowns between refreshes.
 
 ## Blade geometry and lighting
 
@@ -264,13 +287,30 @@ and the [Ghost of Tsushima vegetation slides](https://media.gdcvault.com/GDC%2B2
 False Earth demonstrated the important combination -- camera-centred snapped
 placement, compute culling, LOD buffers and indirect draws -- but its sample
 keeps a uniform candidate grid. This implementation adds deterministic
-continuous distance thinning and independent persistent clipmap-style rings.
+continuous distance thinning and persistent clipmap-style allocations with
+nested crown identities.
+
+The September 2026 stability review also checked AMD's
+[procedural grass rendering](https://gpuopen.com/learn/mesh_shaders/mesh_shaders-procedural_grass_rendering/)
+(March 2024), whose fractional blade-width scaling smooths density changes,
+and Epic's [Nanite Foliage announcement](https://www.unrealengine.com/news/unreal-engine-5-7-is-now-available)
+(November 2025), which uses voxel representations for distant aggregates.
+The nested identity fix fits the existing WebGPU compute/indirect architecture;
+neither a mesh-shader pipeline nor a voxel renderer is needed to preserve a
+crown when its owning ring changes.
+
+Three.js's [Nanite-inspired rasterizer example PR](https://github.com/mrdoob/three.js/pull/33605)
+also shipped with the already pinned r185. Its custom compute rasterization
+and visibility-buffer resolve are an experimental rendering path, not an
+automatic grass optimization; changing rasterization cannot fix changing
+crown identities.
 
 ## Verification boundary
 
 `node --test` protects the CPU contracts: ring capacities and snapping,
-deterministic return-to-place placement, exclusive ownership and monotonic
-density, the packed record stride and storage budget, float-bit preservation
+deterministic return-to-place placement, nested identities at LOD handovers,
+allocation-cell containment, packed rank cohorts, exclusive ownership and
+monotonic density, the packed record stride and storage budget, float-bit preservation
 and quantization error, blade bounds against the culling sphere, the lighting
 and palette arithmetic, and resource disposal. Those tests never execute
 WebGPU, and CPU tests cannot see a single blade on screen. Compute, indirect

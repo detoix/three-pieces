@@ -82,6 +82,13 @@ The entry point also exports `LAWN_UNDERLAY`, `normalizeLawnUnderlay`, `LAWN_COL
 
 ## Ownership and remaining limits
 
+The four LOD rings share nested crown identities: as the camera approaches,
+additional crowns join the ones already present instead of replacing them at
+8 m or 24 m. Placement changes once when updating from the older independent
+ring patterns. Buffer capacities, density targets and draw counts are unchanged.
+With `cullHysteresis`, density additions still occur at refresh intervals;
+blade shape simplification and sub-pixel aliasing can still be visible.
+
 Grass borrows the renderer, height map, surface and mask. Its idempotent `dispose()` releases blade materials, geometry, storage, compute and readback resources; detach its group first. `disposed` becomes true, `update()` and `invalidateCulling()` become no-ops, and pending readbacks release results without updating diagnostics. It does not remove host objects or stop the host's loop.
 
 **A surface owns its materials, and by default its PBR textures, including caller-supplied textures.** Supplied textures are configured in place (color space, wrapping, filtering, anisotropy, name) and disposed by `surface.dispose()`. Pass `ownTextures: false` with `textures` to keep them host-owned: the surface still releases its own materials, and the host disposes the textures after every surface using them has been disposed. `surface.ownsTextures` reports which applies. `ownTextures: false` without `textures` is rejected before loading, because bundled maps a surface loads itself are always owned. Borrowing surfaces configure the same texture objects identically, so sharing them does not change their settings. Dispose grass and detach ground materials before disposing the surface; retain borrowed height/mask resources until their consumers are finished. `loadLawnPBRTextures()` alone returns caller-owned textures; a failed batch releases any successfully loaded sibling texture.

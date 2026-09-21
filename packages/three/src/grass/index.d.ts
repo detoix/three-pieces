@@ -226,6 +226,7 @@ export interface GrassRing {
   readonly outer: number;
   readonly spacing: number;
   readonly segments: number;
+  /** Shared canonical crown seed stream; zero for every LOD. */
   readonly seedIndex: number;
   readonly densityInner: number;
   readonly densityOuter: number;

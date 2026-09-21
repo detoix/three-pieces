@@ -357,8 +357,8 @@ export const LAWN = Object.freeze({
    *  are the right foundation and "their range is currently too restricted".
    *
    *  **It stays at 0.22, and the reason is structural.** Widening it can only
-   *  widen *downwards*: retention is `density / candidateDensity` clamped to
-   *  1, and every ring's target density already equals its candidate lattice
+   *  widen *downwards*: retained density cannot exceed candidate density,
+   *  and every ring's target density already equals its candidate lattice
    *  at its inner edge, so there is no headroom above. Richer ground cannot
    *  get denser than the lattice; poorer ground only gets thinner. So every
    *  unit of extra swing is a unit of removed grass, and the gaps it opens are
